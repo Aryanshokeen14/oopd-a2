@@ -27,7 +27,18 @@ ElectronicResource::ElectronicResource(std::string id, std::string title,
 
 Money ElectronicResource::costFor(int seats) const {
     requirePositive(seats);
-    return platformFee_ + unitPrice() * seats;
+
+    if (seats <= 50) {
+        return platformFee_ + unitPrice() * seats;
+    }
+
+    const int discountedSeats = seats - 50;
+
+    Money fullPrice = unitPrice() * 50;
+    Money halfPrice = Money::fromMinor(unitPrice().minorUnits() / 2)
+                    * discountedSeats;
+
+    return platformFee_ + fullPrice + halfPrice;
 }
 
 void ElectronicResource::printDetails(std::ostream& os) const {

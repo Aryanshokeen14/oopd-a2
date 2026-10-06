@@ -38,12 +38,16 @@ Money Book::costFor(int copies) const {
 
     Money total = unitPrice() * copies;
 
+    // Q4: Hardcover costs 20% more.
     if (binding_ == Binding::Hardcover) {
-        // Hardcover costs 20% more.
-        // Money is stored in minor units, so calculate exactly:
-        // total + 20% of total.
         const auto minor = total.minorUnits();
-        return Money::fromMinor(minor + minor / 5);
+        total = Money::fromMinor(minor + minor / 5);
+    }
+
+    // Q5: Print resources get 10% off for 10 or more copies.
+    if (copies >= 10) {
+        const auto minor = total.minorUnits();
+        total = Money::fromMinor(minor - minor / 10);
     }
 
     return total;

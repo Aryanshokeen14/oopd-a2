@@ -327,6 +327,31 @@ static void testAudioBookAndThesis() {
           != std::string::npos);
 }
 
+static void testBulkPricing() {
+
+    // Q5: print resources get 10% off at 10+ copies
+    {
+        Book paperback(
+            "Q5-B1", "Test Book", {"Author"}, "ISBN-Q5",
+            "Publisher", 2026, Money::of(100),
+            1, Binding::Paperback);
+
+        CHECK(paperback.costFor(9) == Money::of(900));
+        CHECK(paperback.costFor(10) == Money::of(900));
+    }
+
+    // Q5: electronic seats beyond 50 cost half price
+    {
+        ElectronicResource ebook(
+            "Q5-E1", "Test Electronic Resource", "Publisher", 2026,
+            Money::of(100), "https://example.com",
+            LicenseModel::AnnualSubscription, Money::of(50));
+
+        CHECK(ebook.costFor(50) == Money::of(5050));
+        CHECK(ebook.costFor(51) == Money::of(5100));
+    }
+}
+
 int main() {
     testMoney();
     testResourcesAndCost();
@@ -336,6 +361,7 @@ int main() {
     testJournal();
     testEBook();
     testAudioBookAndThesis();
+    testBulkPricing();
     
     std::cout << (g_checks - g_failures) << "/" << g_checks << " checks passed\n";
     return g_failures == 0 ? 0 : 1;

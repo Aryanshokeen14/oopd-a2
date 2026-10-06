@@ -66,6 +66,23 @@ int main()
     std::cout << "\n=== Details of T001 ===\n"
           << catalog.get("T001");
 
+    std::cout << "\n=== Q5 Bulk Pricing ===\n";
+    Book bulkBook(
+    "Q5-B1", "Bulk Test Book", {"Author"}, "ISBN-Q5",
+    "Publisher", 2026, Money::of(100),
+    1, Binding::Paperback);
+    
+    std::cout << "9 copies:  " << bulkBook.costFor(9) << "\n";
+    std::cout << "10 copies: " << bulkBook.costFor(10) << "\n";
+
+    ElectronicResource bulkElectronic(
+    "Q5-E1", "Bulk Electronic Resource", "Publisher", 2026,
+    Money::of(100), "https://example.com",
+    LicenseModel::AnnualSubscription, Money::of(50));
+
+    std::cout << "50 seats: " << bulkElectronic.costFor(50) << "\n";
+    std::cout << "51 seats: " << bulkElectronic.costFor(51) << "\n";
+
     Budget budget(Money::of(20000));
     budget.setQuota(ResourceCategory::Book, {10, Money::of(8000)});
     budget.setQuota(ResourceCategory::ElectronicResource, {40, Money::of(12000)});
