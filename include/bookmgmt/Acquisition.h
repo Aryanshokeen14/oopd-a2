@@ -22,7 +22,8 @@ struct PurchaseRecord {
     std::string title;
     ResourceCategory category;
     int quantity;
-    Money cost;
+    Money preTaxCost;
+    Money postTaxCost;
     bool approved;
     std::string reason;  // why it was rejected; empty if approved
 };
@@ -33,6 +34,12 @@ public:
 
     // Price of a request without buying anything. Throws NotFoundError.
     Money quote(const std::string& id, int quantity) const;
+
+    void setPrintTaxRate(double percent);
+    void setElectronicTaxRate(double percent);
+
+    double printTaxRate() const { return printTaxRate_; }
+    double electronicTaxRate() const { return electronicTaxRate_; }
 
     // True if the purchase would be approved; if not, `reason` explains why.
     bool canPurchase(const std::string& id, int quantity,
@@ -55,12 +62,18 @@ public:
 
 private:
     PurchaseRecord& record(const Resource* r, const std::string& id, int qty,
-                           Money cost, bool approved, std::string reason);
+                           Money preTaxCost, Money postTaxCost, bool approved, std::string reason);
+
+    
+    Money postTaxCost(const Resource& r, Money preTax) const;
 
     Catalog& catalog_;
     Budget& budget_;
     std::vector<PurchaseRecord> history_;
     int nextOrderNo_ = 1;
+
+    double printTaxRate_ = 0.0;
+    double electronicTaxRate_ = 0.0;
 };
 
 }  // namespace bookmgmt

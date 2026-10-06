@@ -61,27 +61,67 @@ int main()
     std::cout << "\n=== Details of E001 ===\n"
               << catalog.get("E001");
     std::cout << "\n=== Details of A001 ===\n"
-          << catalog.get("A001");
+              << catalog.get("A001");
 
     std::cout << "\n=== Details of T001 ===\n"
-          << catalog.get("T001");
+              << catalog.get("T001");
 
     std::cout << "\n=== Q5 Bulk Pricing ===\n";
     Book bulkBook(
-    "Q5-B1", "Bulk Test Book", {"Author"}, "ISBN-Q5",
-    "Publisher", 2026, Money::of(100),
-    1, Binding::Paperback);
-    
+        "Q5-B1", "Bulk Test Book", {"Author"}, "ISBN-Q5",
+        "Publisher", 2026, Money::of(100),
+        1, Binding::Paperback);
+
     std::cout << "9 copies:  " << bulkBook.costFor(9) << "\n";
     std::cout << "10 copies: " << bulkBook.costFor(10) << "\n";
 
     ElectronicResource bulkElectronic(
-    "Q5-E1", "Bulk Electronic Resource", "Publisher", 2026,
-    Money::of(100), "https://example.com",
-    LicenseModel::AnnualSubscription, Money::of(50));
+        "Q5-E1", "Bulk Electronic Resource", "Publisher", 2026,
+        Money::of(100), "https://example.com",
+        LicenseModel::AnnualSubscription, Money::of(50));
 
     std::cout << "50 seats: " << bulkElectronic.costFor(50) << "\n";
     std::cout << "51 seats: " << bulkElectronic.costFor(51) << "\n";
+
+    std::cout << "\n=== Q6 Tax Pricing ===\n";
+    Catalog taxCatalog;
+    taxCatalog.emplace<Book>(
+        "TAX-B1",
+        "Tax Book",
+        std::vector<std::string>{"Author"},
+        "ISBN-TAX",
+        "Publisher",
+        2026,
+        Money::of(100),
+        1,
+        Binding::Paperback);
+    taxCatalog.emplace<ElectronicResource>(
+        "TAX-E1",
+        "Tax Electronic",
+        "Publisher",
+        2026,
+        Money::of(100),
+        "https://example.com");
+
+    Budget taxBudget(Money::of(5000));
+
+    AcquisitionManager taxAcq(taxCatalog, taxBudget);
+
+    taxAcq.setPrintTaxRate(10.0);
+    taxAcq.setElectronicTaxRate(20.0);
+
+    const auto printOrder = taxAcq.purchase("TAX-B1", 1);
+    const auto electronicOrder = taxAcq.purchase("TAX-E1", 1);
+
+    std::cout << "Print resource:\n"
+              << "  pre-tax:  " << printOrder.preTaxCost << "\n"
+              << "  post-tax: " << printOrder.postTaxCost << "\n";
+
+    std::cout << "Electronic resource:\n"
+              << "  pre-tax:  " << electronicOrder.preTaxCost << "\n"
+              << "  post-tax: " << electronicOrder.postTaxCost << "\n";
+
+    taxAcq.printReport(std::cout);
 
     Budget budget(Money::of(20000));
     budget.setQuota(ResourceCategory::Book, {10, Money::of(8000)});
@@ -89,7 +129,7 @@ int main()
     budget.setQuota(ResourceCategory::Journal, {5, Money::of(5000)});
     budget.setQuota(ResourceCategory::EBook, {10, Money::of(3000)});
     budget.setQuota(ResourceCategory::Thesis, {5, Money::of(1000)});
-    
+
     AcquisitionManager acq(catalog, budget);
 
     std::cout << "\n=== Quotes ===\n";

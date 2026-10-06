@@ -143,7 +143,10 @@ static void testAcquisition() {
     CHECK(!acq.canPurchase("nope", 1, &why));
 
     const auto& rec = acq.purchase("B1", 2);
-    CHECK(rec.approved && rec.cost == Money::of(200) && rec.orderNo == 1);
+    CHECK(rec.approved &&
+      rec.preTaxCost == Money::of(200) &&
+      rec.postTaxCost == Money::of(200) &&
+      rec.orderNo == 1);
     CHECK(c.holdings("B1") == 2);
 
     CHECK_THROWS(acq.purchase("B1", 2), QuotaExceededError);
@@ -152,7 +155,9 @@ static void testAcquisition() {
 
     auto res = acq.processBatch({{"R1", 10}, {"R1", 100}, {"B1", 1}, {"zzz", 1}, {"B1", 0}});
     CHECK(res.size() == 5);
-    CHECK(res[0].approved && res[0].cost == Money::of(150));
+    CHECK(res[0].approved &&
+      res[0].preTaxCost == Money::of(150) &&
+      res[0].postTaxCost == Money::of(150));
     CHECK(!res[1].approved);  // 1050 > remaining 150
     CHECK(res[2].approved);
     CHECK(!res[3].approved && res[3].reason.find("not found") != std::string::npos);
@@ -352,6 +357,78 @@ static void testBulkPricing() {
     }
 }
 
+static void testTaxes() {
+
+    Catalog c;
+
+    c.emplace<Book>(
+        "TAX-B1", "Tax Book",
+        std::vector<std::string>{"Author"},
+        "ISBN-TAX", "Publisher", 2026,
+        Money::of(100)
+    );
+
+    c.emplace<ElectronicResource>(
+        "TAX-E1", "Tax Electronic",
+        "Publisher", 2026,
+        Money::of(100),
+        "https://example.com"
+    );
+
+    Budget b(Money::of(1000));
+    b.setQuota(ResourceCategory::Book, {10, Money::of(1000)});
+    b.setQuota(ResourceCategory::ElectronicResource, {10, Money::of(1000)});
+
+    AcquisitionManager acq(c, b);
+
+    // 10% tax on print resources
+    acq.setPrintTaxRate(10.0);
+
+    // 20% tax on electronic resources
+    acq.setElectronicTaxRate(20.0);
+
+    CHECK(acq.printTaxRate() == 10.0);
+    CHECK(acq.electronicTaxRate() == 20.0);
+
+    // Book: 100 pre-tax -> 110 post-tax
+    CHECK(acq.quote("TAX-B1", 1) == Money::of(100));
+
+        // Quota is 105. Pre-tax is 100, but 10% tax makes it 110.
+    // Therefore the purchase must be rejected.
+    Budget tightBudget(Money::of(1000));
+    tightBudget.setQuota(ResourceCategory::Book, {10, Money::of(105)});
+
+    AcquisitionManager tightAcq(c, tightBudget);
+    tightAcq.setPrintTaxRate(10.0);
+
+    std::string why;
+    CHECK(!tightAcq.canPurchase("TAX-B1", 1, &why));
+
+    // std::string why;
+    CHECK(acq.canPurchase("TAX-B1", 1, &why));
+    CHECK(why.empty());
+
+    const auto& bookRecord = acq.purchase("TAX-B1", 1);
+
+    CHECK(bookRecord.preTaxCost == Money::of(100));
+    CHECK(bookRecord.postTaxCost == Money::of(110));
+
+    // Electronic: 100 pre-tax -> 120 post-tax
+    CHECK(acq.canPurchase("TAX-E1", 1, &why));
+    CHECK(why.empty());
+
+    const auto& ebookRecord = acq.purchase("TAX-E1", 1);
+
+    CHECK(ebookRecord.preTaxCost == Money::of(100));
+    CHECK(ebookRecord.postTaxCost == Money::of(120));
+
+    // Budget spent must use post-tax amounts.
+    CHECK(b.spent() == Money::of(230));
+    CHECK(acq.totalSpent() == Money::of(230));
+}
+
+
+
 int main() {
     testMoney();
     testResourcesAndCost();
@@ -362,6 +439,7 @@ int main() {
     testEBook();
     testAudioBookAndThesis();
     testBulkPricing();
+    testTaxes();
     
     std::cout << (g_checks - g_failures) << "/" << g_checks << " checks passed\n";
     return g_failures == 0 ? 0 : 1;
