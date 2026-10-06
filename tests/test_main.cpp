@@ -234,6 +234,99 @@ static void testEBook() {
     CHECK(os.str().find("drm protected: yes") != std::string::npos);
 }
 
+static void testAudioBookAndThesis() {
+    AudioBook audiobook(
+        "A001",
+        "Clean Code",
+        {"Robert C. Martin"},
+        "978-0132350884",
+        "Prentice Hall",
+        2026,
+        Money::of(500),
+        "John Doe",
+        600
+    );
+
+    CHECK(audiobook.category() == ResourceCategory::Book);
+    CHECK(!audiobook.isDigital());
+
+    CHECK(audiobook.narrator() == "John Doe");
+    CHECK(audiobook.durationMinutes() == 600);
+    CHECK(audiobook.authors().size() == 1);
+    CHECK(audiobook.isbn() == "978-0132350884");
+
+    std::ostringstream audioDetails;
+    audioDetails << audiobook;
+
+    CHECK(audioDetails.str().find("authors: Robert C. Martin")
+          != std::string::npos);
+    CHECK(audioDetails.str().find("narrator: John Doe")
+          != std::string::npos);
+    CHECK(audioDetails.str().find("duration minutes: 600")
+          != std::string::npos);
+
+    CHECK_THROWS(
+        AudioBook(
+            "A002",
+            "Test",
+            {"Author"},
+            "123",
+            "Publisher",
+            2026,
+            Money::of(100),
+            "",
+            100
+        ),
+        std::invalid_argument
+    );
+
+    CHECK_THROWS(
+        AudioBook(
+            "A003",
+            "Test",
+            {"Author"},
+            "123",
+            "Publisher",
+            2026,
+            Money::of(100),
+            "Narrator",
+            0
+        ),
+        std::invalid_argument
+    );
+
+
+    Thesis thesis(
+        "T001",
+        "AI in Education",
+        "IIIT Delhi",
+        "M.Tech",
+        "Dr. Professor",
+        "IIIT Delhi",
+        2026,
+        Money::of(0)
+    );
+
+    CHECK(thesis.category() == ResourceCategory::Thesis);
+    CHECK(!thesis.isDigital());
+
+    CHECK(thesis.university() == "IIIT Delhi");
+    CHECK(thesis.degree() == "M.Tech");
+    CHECK(thesis.supervisor() == "Dr. Professor");
+
+    CHECK(thesis.costFor(1) == Money::of(0));
+
+    std::ostringstream thesisDetails;
+    thesisDetails << thesis;
+
+    CHECK(thesisDetails.str().find("university: IIIT Delhi")
+          != std::string::npos);
+    CHECK(thesisDetails.str().find("degree: M.Tech")
+          != std::string::npos);
+    CHECK(thesisDetails.str().find("supervisor: Dr. Professor")
+          != std::string::npos);
+}
+
 int main() {
     testMoney();
     testResourcesAndCost();
@@ -242,6 +335,7 @@ int main() {
     testAcquisition();
     testJournal();
     testEBook();
+    testAudioBookAndThesis();
     
     std::cout << (g_checks - g_failures) << "/" << g_checks << " checks passed\n";
     return g_failures == 0 ? 0 : 1;

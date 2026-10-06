@@ -11,3 +11,5 @@
 #include "bookmgmt/Resource.h"
 #include "bookmgmt/Journal.h"
 #include "bookmgmt/EBook.h"
+#include "bookmgmt/Thesis.h"
+#include "bookmgmt/AudioBook.h"
