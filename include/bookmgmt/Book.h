@@ -21,6 +21,8 @@ public:
     Binding binding() const { return binding_; }
 
     ResourceCategory category() const override { return ResourceCategory::Book; }
+    
+    Money costFor(int copies) const override;
 
 protected:
     void printDetails(std::ostream& os) const override;

@@ -33,4 +33,20 @@ void Book::printDetails(std::ostream& os) const {
        << "\n";
 }
 
+Money Book::costFor(int copies) const {
+    requirePositive(copies);
+
+    Money total = unitPrice() * copies;
+
+    if (binding_ == Binding::Hardcover) {
+        // Hardcover costs 20% more.
+        // Money is stored in minor units, so calculate exactly:
+        // total + 20% of total.
+        const auto minor = total.minorUnits();
+        return Money::fromMinor(minor + minor / 5);
+    }
+
+    return total;
+}
+
 }  // namespace bookmgmt
