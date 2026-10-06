@@ -194,6 +194,46 @@ static void testJournal() {
     CHECK(os.str().find("subscription years: 2") != std::string::npos);
 }
 
+static void testEBook() {
+    EBook ebook(
+        "E001",
+        "Clean Code",
+        {"Robert C. Martin"},
+        "978-0132350884",
+        EBookFormat::PDF,
+        true,
+        "Prentice Hall",
+        2026,
+        Money::of(100),
+        "https://example.com/ebook",
+        LicenseModel::AnnualSubscription,
+        Money::of(50)
+    );
+
+    CHECK(ebook.category() == ResourceCategory::EBook);
+    CHECK(ebook.isDigital());
+
+    CHECK(ebook.authors().size() == 1);
+    CHECK(ebook.authors()[0] == "Robert C. Martin");
+    CHECK(ebook.isbn() == "978-0132350884");
+    CHECK(ebook.format() == EBookFormat::PDF);
+    CHECK(ebook.drmProtected());
+
+    // Pricing is inherited from ElectronicResource:
+    // platform fee + price per seat × seats
+    CHECK(ebook.costFor(5) == Money::of(550));
+
+    std::ostringstream os;
+    os << ebook;
+
+    CHECK(os.str().find("EBook E001") != std::string::npos);
+    CHECK(os.str().find("platform fee: 50.00") != std::string::npos);
+    CHECK(os.str().find("authors: Robert C. Martin") != std::string::npos);
+    CHECK(os.str().find("isbn: 978-0132350884") != std::string::npos);
+    CHECK(os.str().find("format: PDF") != std::string::npos);
+    CHECK(os.str().find("drm protected: yes") != std::string::npos);
+}
+
 int main() {
     testMoney();
     testResourcesAndCost();
@@ -201,6 +241,7 @@ int main() {
     testBudget();
     testAcquisition();
     testJournal();
+    testEBook();
     
     std::cout << (g_checks - g_failures) << "/" << g_checks << " checks passed\n";
     return g_failures == 0 ? 0 : 1;

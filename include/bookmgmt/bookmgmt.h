@@ -10,3 +10,4 @@
 #include "bookmgmt/Money.h"
 #include "bookmgmt/Resource.h"
 #include "bookmgmt/Journal.h"
+#include "bookmgmt/EBook.h"

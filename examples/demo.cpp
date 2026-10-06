@@ -23,6 +23,10 @@ int main() {
                                         LicenseModel::Perpetual);
     catalog.emplace<Journal>("J001","IEEE Spectrum","1939-1170",
                                         12,"IEEE",2026,Money::of(500),2);
+    catalog.emplace<EBook>("E001","Clean Code",std::vector<std::string>{"Robert C. Martin"},
+                            "978-0132350884",EBookFormat::PDF,true,"Prentice Hall",
+                            2026,Money::of(100),"https://example.com/ebook",
+                            LicenseModel::AnnualSubscription,Money::of(50));
 
     std::cout << "=== Catalog ===\n";
     for (const Resource* r : catalog.all()) std::cout << r->summary() << "\n";
@@ -32,10 +36,14 @@ int main() {
     std::cout << "\n=== Details of J001 ===\n"
           << catalog.get("J001");
 
+    std::cout << "\n=== Details of E001 ===\n"
+          << catalog.get("E001");
+
     Budget budget(Money::of(20000));
     budget.setQuota(ResourceCategory::Book, {10, Money::of(8000)});
     budget.setQuota(ResourceCategory::ElectronicResource, {40, Money::of(12000)});
     budget.setQuota(ResourceCategory::Journal, {5, Money::of(5000)});
+    budget.setQuota(ResourceCategory::EBook, {10, Money::of(3000)});
 
     AcquisitionManager acq(catalog, budget);
 

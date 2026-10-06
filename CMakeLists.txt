@@ -14,6 +14,7 @@ add_library(bookmgmt
     src/Catalog.cpp
     src/Acquisition.cpp
     src/Journal.cpp
+    src/EBook.cpp
 )
 target_include_directories(bookmgmt PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
