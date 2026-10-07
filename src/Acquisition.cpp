@@ -25,7 +25,7 @@ bool AcquisitionManager::canPurchase(const std::string& id, int quantity,
         else {
             const Money preTax = r->costFor(quantity);
             const Money postTax = postTaxCost(*r, preTax);
-            why = budget_.check(r->category(), quantity, postTax);
+            why = budget_.check(r->title(), r->category(), quantity, postTax);
         }
     } else {
         why = "resource not found: " + id;
@@ -91,7 +91,7 @@ const PurchaseRecord& AcquisitionManager::purchase(const std::string& id, int qu
     const Money preTax = r.costFor(quantity);
     const Money postTax = postTaxCost(r, preTax);
 
-    budget_.commit(r.category(), quantity, postTax);
+    budget_.commit(r.title(), r.category(), quantity, postTax);
     catalog_.addHoldings(id, quantity);
 
 return record(&r, id, quantity, preTax, postTax, true, {});
@@ -119,7 +119,7 @@ std::vector<PurchaseRecord> AcquisitionManager::processBatch(
             postTax = postTaxCost(*r, preTax);
 
             // Q6: quota and overall budget are checked using post-tax cost.
-            why = budget_.check(r->category(), req.quantity, postTax);
+            why = budget_.check(r->title(), r->category(), req.quantity, postTax);
         }
 
         if (why.empty()) {

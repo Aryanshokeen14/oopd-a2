@@ -427,6 +427,40 @@ static void testTaxes() {
     CHECK(acq.totalSpent() == Money::of(230));
 }
 
+static void testTitleQuota() {
+    Budget budget(Money::of(1000));
+
+    budget.setTitleQuota("Algorithms", 5);
+
+    CHECK(budget.titleQuotaFor("Algorithms").has_value());
+    CHECK(*budget.titleQuotaFor("Algorithms") == 5);
+    CHECK(budget.titleUsage("Algorithms") == 0);
+
+    budget.commit("Algorithms",
+                  ResourceCategory::Book,
+                  3,
+                  Money::of(300));
+
+    CHECK(budget.titleUsage("Algorithms") == 3);
+
+    CHECK(budget.check("Algorithms",
+                       ResourceCategory::Book,
+                       2,
+                       Money::of(200)).empty());
+
+    CHECK(!budget.check("Algorithms",
+                        ResourceCategory::Book,
+                        3,
+                        Money::of(300)).empty());
+
+    CHECK_THROWS(
+        budget.commit("Algorithms",
+                      ResourceCategory::Book,
+                      3,
+                      Money::of(300)),
+        QuotaExceededError
+    );
+}
 
 
 int main() {
@@ -440,6 +474,7 @@ int main() {
     testAudioBookAndThesis();
     testBulkPricing();
     testTaxes();
+    testTitleQuota();
     
     std::cout << (g_checks - g_failures) << "/" << g_checks << " checks passed\n";
     return g_failures == 0 ? 0 : 1;

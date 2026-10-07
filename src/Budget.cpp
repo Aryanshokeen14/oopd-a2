@@ -27,6 +27,71 @@ void Budget::setQuota(ResourceCategory c, Quota q) {
 
 void Budget::removeQuota(ResourceCategory c) { quotas_.erase(c); }
 
+void Budget::setTitleQuota(const std::string& title, int maxUnits) {
+    if (maxUnits < 0)
+        throw std::invalid_argument("title quota must not be negative");
+
+    titleQuotas_[title] = maxUnits;
+}
+
+void Budget::removeTitleQuota(const std::string& title) {
+    titleQuotas_.erase(title);
+}
+
+std::optional<int> Budget::titleQuotaFor(const std::string& title) const {
+    auto it = titleQuotas_.find(title);
+    if (it == titleQuotas_.end())
+        return std::nullopt;
+
+    return it->second;
+}
+
+int Budget::titleUsage(const std::string& title) const {
+    auto it = titleUsage_.find(title);
+    if (it == titleUsage_.end())
+        return 0;
+
+    return it->second;
+}
+
+std::string Budget::check(const std::string& title,
+                          ResourceCategory c,
+                          int units,
+                          Money cost) const {
+    if (auto limit = titleQuotaFor(title)) {
+        const int used = titleUsage(title);
+
+        if (used + units > *limit) {
+            return "title quota exceeded for \"" + title +
+                   "\": requested " + std::to_string(units) +
+                   ", " + std::to_string(*limit - used) + " remaining";
+        }
+    }
+
+    return check(c, units, cost);
+}
+
+void Budget::commit(const std::string& title,
+                    ResourceCategory c,
+                    int units,
+                    Money cost) {
+    if (auto limit = titleQuotaFor(title)) {
+        const int used = titleUsage(title);
+
+        if (used + units > *limit) {
+            throw QuotaExceededError(
+                "title quota exceeded for \"" + title +
+                "\": requested " + std::to_string(units) +
+                ", " + std::to_string(*limit - used) +
+                " remaining"
+            );
+        }
+    }
+
+    commit(c, units, cost);
+    titleUsage_[title] += units;
+}
+
 std::optional<Quota> Budget::quotaFor(ResourceCategory c) const {
     auto it = quotas_.find(c);
     if (it == quotas_.end()) return std::nullopt;

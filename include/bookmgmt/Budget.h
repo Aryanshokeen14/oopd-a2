@@ -37,6 +37,21 @@ public:
     std::optional<Quota> quotaFor(ResourceCategory c) const;
     Usage usageFor(ResourceCategory c) const;
 
+    void setTitleQuota(const std::string& title, int maxUnits);
+    void removeTitleQuota(const std::string& title);
+    std::optional<int> titleQuotaFor(const std::string& title) const;
+    int titleUsage(const std::string& title) const;
+
+    std::string check(const std::string& title,
+                  ResourceCategory c,
+                  int units,
+                  Money cost) const;
+
+    void commit(const std::string& title,
+            ResourceCategory c,
+            int units,
+            Money cost);
+
     // Remaining allowance in a category; nullopt means "no quota set".
     std::optional<int> unitsRemaining(ResourceCategory c) const;
     std::optional<Money> spendRemaining(ResourceCategory c) const;
@@ -59,6 +74,9 @@ private:
     Money spent_;
     std::map<ResourceCategory, Quota> quotas_;
     std::map<ResourceCategory, Usage> usage_;
+
+    std::map<std::string, int> titleQuotas_;
+    std::map<std::string, int> titleUsage_;
 };
 
 }  // namespace bookmgmt

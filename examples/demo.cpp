@@ -113,6 +113,40 @@ int main()
     const auto printOrder = taxAcq.purchase("TAX-B1", 1);
     const auto electronicOrder = taxAcq.purchase("TAX-E1", 1);
 
+    std::cout << "\n=== Q7 Title Quota ===\n";
+
+    Budget titleBudget(Money::of(1000));
+    titleBudget.setTitleQuota("Algorithms", 5);
+
+    titleBudget.commit("Algorithms",
+                       ResourceCategory::Book,
+                       3,
+                       Money::of(300));
+
+    std::cout << "Algorithms usage: "
+              << titleBudget.titleUsage("Algorithms") << "/"
+              << *titleBudget.titleQuotaFor("Algorithms") << "\n";
+
+    std::cout << "Request 2 more: "
+              << (titleBudget.check("Algorithms",
+                                    ResourceCategory::Book,
+                                    2,
+                                    Money::of(200))
+                          .empty()
+                      ? "approved"
+                      : "rejected")
+              << "\n";
+
+    std::cout << "Request 3 more: "
+              << (titleBudget.check("Algorithms",
+                                    ResourceCategory::Book,
+                                    3,
+                                    Money::of(300))
+                          .empty()
+                      ? "approved"
+                      : "rejected")
+              << "\n";
+
     std::cout << "Print resource:\n"
               << "  pre-tax:  " << printOrder.preTaxCost << "\n"
               << "  post-tax: " << printOrder.postTaxCost << "\n";
