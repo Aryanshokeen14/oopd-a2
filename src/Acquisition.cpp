@@ -80,7 +80,9 @@ PurchaseRecord& AcquisitionManager::record(
         preTaxCost,
         postTaxCost,
         approved,
-        std::move(reason)
+        std::move(reason),
+        false,
+        0
     });
 
     return history_.back();
@@ -152,7 +154,8 @@ void AcquisitionManager::printReport(std::ostream& os) const {
 
     for (const auto& rec : history_) {
         os << "  #" << std::setw(3) << std::left << rec.orderNo << " "
-           << (rec.approved ? "APPROVED" : "REJECTED") << "  "
+           << (rec.cancellation ? "CANCELLED" :
+                (rec.approved ? "APPROVED" : "REJECTED")) << "  "
            << std::setw(6) << rec.resourceId
            << " x" << std::setw(3) << rec.quantity
            << "  pre-tax: " << std::setw(10) << std::right
@@ -162,13 +165,66 @@ void AcquisitionManager::printReport(std::ostream& os) const {
            << std::left << "  "
            << rec.title;
 
-        if (!rec.approved)
+        if (rec.cancellation)
+            os << "\n        cancellation of order #" << rec.originalOrderNo;
+        else if (!rec.approved)
             os << "\n        reason: " << rec.reason;
 
         os << "\n";
     }
 
     os << "Total spent: " << totalSpent() << "\n";
+}
+
+
+bool AcquisitionManager::cancel(int orderNo) {
+    // Check if this order was already cancelled
+    for (const auto& rec : history_) {
+        if (rec.cancellation && rec.originalOrderNo == orderNo) {
+            return false;
+        }
+    }
+
+    PurchaseRecord order;
+    bool found = false;
+
+    for (const auto& rec : history_) {
+        if (rec.orderNo == orderNo) {
+            order = rec;
+            found = true;
+            break;
+        }
+    }
+
+    if (!found || !order.approved || order.cancellation)
+        return false;
+
+    const Resource* r = catalog_.find(order.resourceId);
+    if (!r)
+        return false;
+
+    budget_.refund(order.title,
+                   order.category,
+                   order.quantity,
+                   order.postTaxCost);
+
+    catalog_.addHoldings(order.resourceId, -order.quantity);
+
+    history_.push_back(PurchaseRecord{
+        nextOrderNo_++,
+        order.resourceId,
+        order.title,
+        order.category,
+        order.quantity,
+        Money{} - order.preTaxCost,
+        Money{} - order.postTaxCost,
+        true,
+        "Cancellation of order #" + std::to_string(order.orderNo),
+        true,
+        order.orderNo
+    });
+
+    return true;
 }
 
 }  // namespace bookmgmt

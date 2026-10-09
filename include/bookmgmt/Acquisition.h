@@ -26,6 +26,8 @@ struct PurchaseRecord {
     Money postTaxCost;
     bool approved;
     std::string reason;  // why it was rejected; empty if approved
+    bool cancellation;
+    int originalOrderNo;
 };
 
 class AcquisitionManager {
@@ -49,6 +51,8 @@ public:
     // BudgetExceededError or std::invalid_argument. On success the budget
     // and holdings are updated and the record is added to history.
     const PurchaseRecord& purchase(const std::string& id, int quantity);
+
+    bool cancel(int orderNo);
 
     // Processes requests in order; each is approved or rejected on its own
     // (never throws for a rejected request). Every outcome is recorded.

@@ -462,6 +462,43 @@ static void testTitleQuota() {
     );
 }
 
+static void testCancellation() {
+    Catalog catalog;
+
+    catalog.emplace<Book>(
+        "CANCEL-B1",
+        "Cancellation Book",
+        std::vector<std::string>{"Author"},
+        "ISBN-CANCEL",
+        "Publisher",
+        2026,
+        Money::of(100)
+    );
+
+    Budget budget(Money::of(1000));
+    budget.setQuota(ResourceCategory::Book, Quota{10, Money::of(1000)});
+    budget.setTitleQuota("Cancellation Book", 10);
+
+    AcquisitionManager acq(catalog, budget);
+
+    const auto order = acq.purchase("CANCEL-B1", 3);
+
+    CHECK(order.approved);
+    CHECK(budget.spent() == Money::of(300));
+    CHECK(budget.titleUsage("Cancellation Book") == 3);
+
+    CHECK(acq.cancel(order.orderNo));
+
+    CHECK(budget.spent() == Money{});
+    CHECK(budget.titleUsage("Cancellation Book") == 0);
+    CHECK(acq.totalSpent() == Money{});
+    CHECK(acq.history().size() == 2);
+    CHECK(acq.history()[0].cancellation == false);
+    CHECK(acq.history()[1].cancellation == true);
+    CHECK(acq.history()[1].originalOrderNo == order.orderNo);
+
+    CHECK(!acq.cancel(order.orderNo));
+}
 
 int main() {
     testMoney();
@@ -475,6 +512,7 @@ int main() {
     testBulkPricing();
     testTaxes();
     testTitleQuota();
+    testCancellation();
     
     std::cout << (g_checks - g_failures) << "/" << g_checks << " checks passed\n";
     return g_failures == 0 ? 0 : 1;

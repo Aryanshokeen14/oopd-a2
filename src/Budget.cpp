@@ -3,6 +3,7 @@
 #include <iomanip>
 #include <ostream>
 #include <stdexcept>
+#include <iostream>
 
 #include "bookmgmt/Exceptions.h"
 
@@ -162,6 +163,39 @@ void Budget::commit(ResourceCategory c, int units, Money cost) {
     u.units += units;
     u.spent += cost;
     spent_ += cost;
+}
+
+void Budget::refund(ResourceCategory c, int units, Money cost) {
+    if (units <= 0)
+        throw std::invalid_argument("refund units must be positive");
+
+    if (cost.isNegative())
+        throw std::invalid_argument("refund cost must not be negative");
+
+    Usage& u = usage_[c];
+
+    if (units > u.units || cost > u.spent || cost > spent_)
+        throw std::invalid_argument("refund exceeds recorded usage");
+
+    u.units -= units;
+    u.spent -= cost;
+    spent_ -= cost;
+}
+
+void Budget::refund(const std::string& title,
+                    ResourceCategory c,
+                    int units,
+                    Money cost) {
+    if (units <= 0)
+        throw std::invalid_argument("refund units must be positive");
+
+    const int used = titleUsage(title);
+    
+    if (units > used)
+        throw std::invalid_argument("refund exceeds title usage");
+
+    refund(c, units, cost);
+    titleUsage_[title] -= units;
 }
 
 void Budget::print(std::ostream& os) const {

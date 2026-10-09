@@ -47,11 +47,6 @@ public:
                   int units,
                   Money cost) const;
 
-    void commit(const std::string& title,
-            ResourceCategory c,
-            int units,
-            Money cost);
-
     // Remaining allowance in a category; nullopt means "no quota set".
     std::optional<int> unitsRemaining(ResourceCategory c) const;
     std::optional<Money> spendRemaining(ResourceCategory c) const;
@@ -63,6 +58,17 @@ public:
     // Records a purchase. Throws QuotaExceededError / BudgetExceededError
     // (and changes nothing) if it would not fit.
     void commit(ResourceCategory c, int units, Money cost);
+    void refund(ResourceCategory c, int units, Money cost);
+
+    void commit(const std::string& title,
+            ResourceCategory c,
+            int units,
+            Money cost);
+
+    void refund(const std::string& title,
+            ResourceCategory c,
+            int units,
+            Money cost);
 
     void print(std::ostream& os) const;
 

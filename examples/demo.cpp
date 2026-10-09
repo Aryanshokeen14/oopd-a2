@@ -206,5 +206,47 @@ int main()
     {
         std::cout << "QuotaExceededError: " << e.what() << "\n";
     }
+
+    std::cout << "\n=== Q8 Cancellation ===\n";
+
+Catalog cancelCatalog;
+cancelCatalog.emplace<Book>(
+    "CANCEL-B1",
+    "Cancellation Book",
+    std::vector<std::string>{"Author"},
+    "ISBN-CANCEL",
+    "Publisher",
+    2026,
+    Money::of(100)
+);
+
+Budget cancelBudget(Money::of(1000));
+cancelBudget.setQuota(
+    ResourceCategory::Book,
+    Quota{10, Money::of(1000)}
+);
+cancelBudget.setTitleQuota("Cancellation Book", 10);
+
+AcquisitionManager cancelAcq(cancelCatalog, cancelBudget);
+
+const auto cancelOrder = cancelAcq.purchase("CANCEL-B1", 3);
+
+std::cout << "Before cancellation: spent = "
+          << cancelBudget.spent()
+          << ", holdings = "
+          << cancelCatalog.holdings("CANCEL-B1") << "\n";
+
+const bool cancelled = cancelAcq.cancel(cancelOrder.orderNo);
+
+std::cout << "Cancellation successful: "
+          << (cancelled ? "yes" : "no") << "\n";
+
+std::cout << "After cancellation: spent = "
+          << cancelBudget.spent()
+          << ", holdings = "
+          << cancelCatalog.holdings("CANCEL-B1") << "\n";
+
+cancelAcq.printReport(std::cout);
+    
     return 0;
 }
