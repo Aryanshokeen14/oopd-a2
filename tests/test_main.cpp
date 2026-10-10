@@ -4,6 +4,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 #include "bookmgmt/bookmgmt.h"
 
@@ -500,6 +501,42 @@ static void testCancellation() {
     CHECK(!acq.cancel(order.orderNo));
 }
 
+static void testDepartmentBudgets() {
+    Catalog catalog;
+    catalog.emplace<Book>(
+        "DEPT-B1", "Department Book",
+        std::vector<std::string>{"Author"},
+        "ISBN-DEPT", "Publisher", 2026, Money::of(100)
+    );
+
+    Budget defaultBudget(Money::of(1000));
+    AcquisitionManager acq(catalog, defaultBudget);
+
+    Budget csBudget(Money::of(300));
+    csBudget.setQuota(ResourceCategory::Book,
+                      Quota{5, Money::of(300)});
+    acq.addDepartment("Computer Science", std::move(csBudget));
+
+    Budget physicsBudget(Money::of(500));
+    physicsBudget.setQuota(ResourceCategory::Book,
+                           Quota{5, Money::of(500)});
+    acq.addDepartment("Physics", std::move(physicsBudget));
+
+    const auto& order = acq.purchase("Computer Science", "DEPT-B1", 2);
+
+    CHECK(order.approved);
+    CHECK(order.department == "Computer Science");
+    CHECK(acq.departmentBudget("Computer Science")->spent()
+          == Money::of(200));
+    CHECK(acq.departmentBudget("Physics")->spent() == Money{});
+
+    CHECK(!acq.canPurchase("Unknown", "DEPT-B1", 1));
+
+    CHECK(acq.cancel(order.orderNo));
+    CHECK(acq.departmentBudget("Computer Science")->spent() == Money{});
+    CHECK(acq.departmentBudget("Physics")->spent() == Money{});
+}
+
 int main() {
     testMoney();
     testResourcesAndCost();
@@ -513,6 +550,7 @@ int main() {
     testTaxes();
     testTitleQuota();
     testCancellation();
+    testDepartmentBudgets();
     
     std::cout << (g_checks - g_failures) << "/" << g_checks << " checks passed\n";
     return g_failures == 0 ? 0 : 1;

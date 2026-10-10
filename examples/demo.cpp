@@ -247,6 +247,22 @@ std::cout << "After cancellation: spent = "
           << cancelCatalog.holdings("CANCEL-B1") << "\n";
 
 cancelAcq.printReport(std::cout);
+
+
+    Budget csBudget(Money::of(1000));
+    Budget physicsBudget(Money::of(2000));
+
+    acq.addDepartment("Computer Science", csBudget);
+    acq.addDepartment("Physics", physicsBudget);
+
+    const auto& order =
+        acq.purchase("Computer Science", "B001", 2);
+
+    std::cout << "Charged department: " << order.department << '\n';
+    std::cout << "CS spent: "
+              << acq.departmentBudget("Computer Science")->spent() << '\n';
+    std::cout << "Physics spent: "
+              << acq.departmentBudget("Physics")->spent() << '\n';
     
     return 0;
 }

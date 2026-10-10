@@ -5,6 +5,7 @@
 #include <iosfwd>
 #include <string>
 #include <vector>
+#include <map>
 
 #include "bookmgmt/Budget.h"
 #include "bookmgmt/Catalog.h"
@@ -13,7 +14,8 @@ namespace bookmgmt {
 
 struct PurchaseRequest {
     std::string resourceId;
-    int quantity;  // copies for print, seats for electronic
+    int quantity;
+    std::string department = "Default";
 };
 
 struct PurchaseRecord {
@@ -28,6 +30,7 @@ struct PurchaseRecord {
     std::string reason;  // why it was rejected; empty if approved
     bool cancellation;
     int originalOrderNo;
+    std::string department = "Default";
 };
 
 class AcquisitionManager {
@@ -64,10 +67,28 @@ public:
 
     void printReport(std::ostream& os) const;
 
+    void addDepartment(const std::string& dept, Budget budget);
+    Budget* departmentBudget(const std::string& dept);
+    const Budget* departmentBudget(const std::string& dept) const;
+
+    bool canPurchase(const std::string& dept,
+                 const std::string& id,
+                 int quantity,
+                 std::string* reason = nullptr) const;
+
+    const PurchaseRecord& purchase(const std::string& dept,
+                               const std::string& id,
+                               int quantity);
+
+    std::vector<PurchaseRecord> processBatch(
+    const std::string& dept,
+    const std::vector<PurchaseRequest>& reqs);
+
 private:
     PurchaseRecord& record(const Resource* r, const std::string& id, int qty,
-                           Money preTaxCost, Money postTaxCost, bool approved, std::string reason);
-
+                       Money preTaxCost, Money postTaxCost,
+                       bool approved, std::string reason,
+                       std::string department = "Default");
     
     Money postTaxCost(const Resource& r, Money preTax) const;
 
@@ -78,6 +99,9 @@ private:
 
     double printTaxRate_ = 0.0;
     double electronicTaxRate_ = 0.0;
+
+    std::map<std::string, Budget> departments_;
+    static constexpr const char* kDefaultDepartment = "Default";
 };
 
 }  // namespace bookmgmt

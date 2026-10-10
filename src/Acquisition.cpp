@@ -4,6 +4,7 @@
 #include <ostream>
 #include <stdexcept>
 #include <cstdint>
+#include <utility>
 
 #include "bookmgmt/Exceptions.h"
 
@@ -11,6 +12,25 @@ namespace bookmgmt {
 
 AcquisitionManager::AcquisitionManager(Catalog& catalog, Budget& budget)
     : catalog_(catalog), budget_(budget) {}
+
+void AcquisitionManager::addDepartment(const std::string& dept,
+                                       Budget budget) {
+    if (dept.empty())
+        throw std::invalid_argument("department name must not be empty");
+
+    departments_.insert_or_assign(dept, std::move(budget));
+}
+
+Budget* AcquisitionManager::departmentBudget(const std::string& dept) {
+    auto it = departments_.find(dept);
+    return it == departments_.end() ? nullptr : &it->second;
+}
+
+const Budget* AcquisitionManager::departmentBudget(
+    const std::string& dept) const {
+    auto it = departments_.find(dept);
+    return it == departments_.end() ? nullptr : &it->second;
+}
 
 Money AcquisitionManager::quote(const std::string& id, int quantity) const {
     return catalog_.get(id).costFor(quantity);
@@ -32,6 +52,42 @@ bool AcquisitionManager::canPurchase(const std::string& id, int quantity,
     }
     if (reason) *reason = why;
     return why.empty();
+}
+
+bool AcquisitionManager::canPurchase(const std::string& dept,
+                                     const std::string& id,
+                                     int quantity,
+                                     std::string* reason) const {
+    const Budget* deptBudget = departmentBudget(dept);
+
+    if (!deptBudget) {
+        if (reason)
+            *reason = "department not found: " + dept;
+        return false;
+    }
+
+    const Resource* r = catalog_.find(id);
+    if (!r) {
+        if (reason)
+            *reason = "resource not found: " + id;
+        return false;
+    }
+
+    try {
+        const Money preTax = r->costFor(quantity);
+        const Money postTax = postTaxCost(*r, preTax);
+        const std::string why =
+            deptBudget->check(r->title(), r->category(), quantity, postTax);
+
+        if (reason)
+            *reason = why;
+
+        return why.empty();
+    } catch (const std::exception& e) {
+        if (reason)
+            *reason = e.what();
+        return false;
+    }
 }
 
 void AcquisitionManager::setPrintTaxRate(double percent) {
@@ -69,7 +125,8 @@ PurchaseRecord& AcquisitionManager::record(
     Money preTaxCost,
     Money postTaxCost,
     bool approved,
-    std::string reason) {
+    std::string reason,
+    std::string department) {
 
     history_.push_back(PurchaseRecord{
         nextOrderNo_++,
@@ -82,7 +139,8 @@ PurchaseRecord& AcquisitionManager::record(
         approved,
         std::move(reason),
         false,
-        0
+        0,
+        department
     });
 
     return history_.back();
@@ -97,6 +155,25 @@ const PurchaseRecord& AcquisitionManager::purchase(const std::string& id, int qu
     catalog_.addHoldings(id, quantity);
 
 return record(&r, id, quantity, preTax, postTax, true, {});
+}
+
+const PurchaseRecord& AcquisitionManager::purchase(
+    const std::string& dept,
+    const std::string& id,
+    int quantity) {
+
+    Budget* deptBudget = departmentBudget(dept);
+    if (!deptBudget)
+        throw std::invalid_argument("department not found: " + dept);
+
+    const Resource& r = catalog_.get(id);
+    const Money preTax = r.costFor(quantity);
+    const Money postTax = postTaxCost(r, preTax);
+
+    deptBudget->commit(r.title(), r.category(), quantity, postTax);
+    catalog_.addHoldings(id, quantity);
+
+    return record(&r, id, quantity, preTax, postTax, true, {}, dept);
 }
 
 std::vector<PurchaseRecord> AcquisitionManager::processBatch(
@@ -142,12 +219,41 @@ std::vector<PurchaseRecord> AcquisitionManager::processBatch(
     return results;
 }
 
+std::vector<PurchaseRecord> AcquisitionManager::processBatch(
+    const std::string& dept,
+    const std::vector<PurchaseRequest>& reqs) {
+
+    std::vector<PurchaseRecord> results;
+
+    for (const auto& req : reqs) {
+        const std::string& chargedDept =
+            req.department == "Default" ? dept : req.department;
+
+        std::string reason;
+        if (!canPurchase(chargedDept, req.resourceId, req.quantity, &reason)) {
+            const Resource* r = catalog_.find(req.resourceId);
+            const Money preTax = r ? r->costFor(req.quantity) : Money{};
+            const Money postTax = r ? postTaxCost(*r, preTax) : Money{};
+
+            results.push_back(record(r, req.resourceId, req.quantity,
+                                     preTax, postTax, false, reason,
+                                     chargedDept));
+            continue;
+        }
+
+        results.push_back(purchase(chargedDept, req.resourceId, req.quantity));
+    }
+
+    return results;
+}
+
 Money AcquisitionManager::totalSpent() const {
     Money sum;
     for (const auto& rec : history_)
         if (rec.approved) sum += rec.postTaxCost;
     return sum;
 }
+
 
 void AcquisitionManager::printReport(std::ostream& os) const {
     os << "Order history (" << history_.size() << " orders)\n";
@@ -163,7 +269,8 @@ void AcquisitionManager::printReport(std::ostream& os) const {
            << "  post-tax: " << std::setw(10)
            << rec.postTaxCost.toString()
            << std::left << "  "
-           << rec.title;
+           << rec.title
+           << "  Department: " << rec.department;
 
         if (rec.cancellation)
             os << "\n        cancellation of order #" << rec.originalOrderNo;
@@ -203,10 +310,17 @@ bool AcquisitionManager::cancel(int orderNo) {
     if (!r)
         return false;
 
-    budget_.refund(order.title,
-                   order.category,
-                   order.quantity,
-                   order.postTaxCost);
+    if (order.department == kDefaultDepartment) {
+        budget_.refund(order.title, order.category,
+                   order.quantity, order.postTaxCost);
+    } else {
+        Budget* deptBudget = departmentBudget(order.department);
+        if (!deptBudget)
+            return false;
+
+    deptBudget->refund(order.title, order.category,
+                       order.quantity, order.postTaxCost);
+    }
 
     catalog_.addHoldings(order.resourceId, -order.quantity);
 
@@ -221,7 +335,8 @@ bool AcquisitionManager::cancel(int orderNo) {
         true,
         "Cancellation of order #" + std::to_string(order.orderNo),
         true,
-        order.orderNo
+        order.orderNo,
+        order.department
     });
 
     return true;
