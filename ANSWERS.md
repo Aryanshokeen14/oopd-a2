@@ -21,3 +21,18 @@
 - Tested rejection of purchases for unknown departments.
 - Tested cancellation and refunding to the original department.
 - All 155 checks passed.
+
+
+## Q10 — Year-End Budget Rollover
+
+**Implementation**
+- Added `Budget::rollover(int carryForwardPercent) const`.
+- The next year's total budget is the configured percentage of the current year's unspent balance.
+- Category quotas and title quotas carry forward, while spending and usage reset for the new year.
+- The original budget remains unchanged.
+- Percentages outside the inclusive range 0–100 are rejected with `std::invalid_argument`.
+
+**Testing**
+- Tested 0%, 50%, and 100% rollover.
+- Tested quota preservation and resetting of category and title usage.
+- Tested invalid percentages and confirmed that the original budget remains unchanged.

@@ -4,6 +4,7 @@
 #include <ostream>
 #include <stdexcept>
 #include <iostream>
+#include <cstdint>
 
 #include "bookmgmt/Exceptions.h"
 
@@ -18,6 +19,30 @@ const ResourceCategory kAllCategories[] = {ResourceCategory::Book,ResourceCatego
 
 Budget::Budget(Money total) : total_(total) {
     if (total_.isNegative()) throw std::invalid_argument("budget must not be negative");
+}
+
+Budget Budget::rollover(int carryForwardPercent) const {
+    if (carryForwardPercent < 0 || carryForwardPercent > 100) {
+        throw std::invalid_argument(
+            "rollover percentage must be between 0 and 100"
+        );
+    }
+
+    const std::int64_t unspent = remaining().minorUnits();
+
+    // Calculate the percentage without overflowing during multiplication.
+    const std::int64_t carry =
+        (unspent / 100) * carryForwardPercent +
+        ((unspent % 100) * carryForwardPercent) / 100;
+
+    Budget nextYear(Money::fromMinor(carry));
+
+    // Preserve category and title quota limits.
+    // Do not copy usage or spending: the new year starts at zero.
+    nextYear.quotas_ = quotas_;
+    nextYear.titleQuotas_ = titleQuotas_;
+
+    return nextYear;
 }
 
 void Budget::setQuota(ResourceCategory c, Quota q) {

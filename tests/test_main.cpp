@@ -537,6 +537,70 @@ static void testDepartmentBudgets() {
     CHECK(acq.departmentBudget("Physics")->spent() == Money{});
 }
 
+static void testBudgetRollover() {
+    Budget currentYear(Money::of(1000));
+
+    currentYear.setQuota(
+        ResourceCategory::Book,
+        Quota{10, Money::of(800)}
+    );
+    currentYear.setTitleQuota("Rollover Book", 5);
+
+    currentYear.commit(
+        "Rollover Book",
+        ResourceCategory::Book,
+        3,
+        Money::of(300)
+    );
+
+    // Current balance: 1000 - 300 = 700.
+    Budget nextYear = currentYear.rollover(50);
+
+    CHECK(nextYear.total() == Money::of(350));
+    CHECK(nextYear.spent() == Money{});
+    CHECK(nextYear.remaining() == Money::of(350));
+
+    // Category quota carries forward, but category usage resets.
+    const auto bookQuota = nextYear.quotaFor(ResourceCategory::Book);
+    CHECK(bookQuota.has_value());
+
+    if (bookQuota) {
+        CHECK(bookQuota->maxUnits == 10);
+        CHECK(bookQuota->maxSpend == Money::of(800));
+    }
+
+    CHECK(nextYear.usageFor(ResourceCategory::Book).units == 0);
+    CHECK(nextYear.usageFor(ResourceCategory::Book).spent == Money{});
+
+    // Title quota carries forward, but title usage resets.
+    CHECK(nextYear.titleQuotaFor("Rollover Book").has_value());
+    CHECK(nextYear.titleQuotaFor("Rollover Book").value() == 5);
+    CHECK(nextYear.titleUsage("Rollover Book") == 0);
+
+    // The original budget remains unchanged.
+    CHECK(currentYear.spent() == Money::of(300));
+    CHECK(currentYear.titleUsage("Rollover Book") == 3);
+
+    CHECK(currentYear.rollover(0).total() == Money{});
+    CHECK(currentYear.rollover(100).total() == Money::of(700));
+
+    bool negativeRejected = false;
+    try {
+        (void)currentYear.rollover(-1);
+    } catch (const std::invalid_argument&) {
+        negativeRejected = true;
+    }
+    CHECK(negativeRejected);
+
+    bool excessiveRejected = false;
+    try {
+        (void)currentYear.rollover(101);
+    } catch (const std::invalid_argument&) {
+        excessiveRejected = true;
+    }
+    CHECK(excessiveRejected);
+}
+
 int main() {
     testMoney();
     testResourcesAndCost();
@@ -551,6 +615,7 @@ int main() {
     testTitleQuota();
     testCancellation();
     testDepartmentBudgets();
+    testBudgetRollover();
     
     std::cout << (g_checks - g_failures) << "/" << g_checks << " checks passed\n";
     return g_failures == 0 ? 0 : 1;

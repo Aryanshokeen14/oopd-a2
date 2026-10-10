@@ -51,6 +51,11 @@ public:
     std::optional<int> unitsRemaining(ResourceCategory c) const;
     std::optional<Money> spendRemaining(ResourceCategory c) const;
 
+    // Create next year's budget using a percentage of this year's
+    // unspent balance. Quota limits carry forward; usage resets to zero.
+    // carryForwardPercent must be between 0 and 100, inclusive.
+    Budget rollover(int carryForwardPercent) const;
+
     // Returns an empty string if the purchase fits, otherwise the reason it
     // does not. Does not change state.
     std::string check(ResourceCategory c, int units, Money cost) const;

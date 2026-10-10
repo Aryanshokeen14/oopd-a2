@@ -264,5 +264,38 @@ cancelAcq.printReport(std::cout);
     std::cout << "Physics spent: "
               << acq.departmentBudget("Physics")->spent() << '\n';
     
+    {
+    std::cout << "\n=== Q10 Year-End Budget Rollover ===\n";
+
+    Budget currentYear(Money::of(10000));
+    currentYear.setQuota(
+        ResourceCategory::Book,
+        Quota{20, Money::of(8000)}
+    );
+
+    currentYear.commit(
+        ResourceCategory::Book,
+        4,
+        Money::of(3000)
+    );
+
+    Budget nextYear = currentYear.rollover(50);
+
+    std::cout << "Current-year budget: "
+              << currentYear.total() << '\n';
+    std::cout << "Current-year spent: "
+              << currentYear.spent() << '\n';
+    std::cout << "Current-year unspent: "
+              << currentYear.remaining() << '\n';
+    std::cout << "Rollover percentage: 50%\n";
+    std::cout << "Next-year budget: "
+              << nextYear.total() << '\n';
+    std::cout << "Next-year spent: "
+              << nextYear.spent() << '\n';
+    std::cout << "Next-year Book units used: "
+              << nextYear.usageFor(ResourceCategory::Book).units
+              << '\n';
+}
+
     return 0;
 }
