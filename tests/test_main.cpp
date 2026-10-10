@@ -651,6 +651,75 @@ static void testAllOrNothingBatch() {
 }
 
 
+static void testVendors() {
+    Catalog c;
+
+    c.emplace<Book>(
+        "B1", "Vendor Test Book",
+        std::vector<std::string>{"Author"},
+        "ISBN-V1", "Publisher", 2025,
+        Money::of(100));
+
+    Budget b(Money::of(1000));
+    b.setQuota(ResourceCategory::Book, {10, Money::of(1000)});
+
+    AcquisitionManager acq(c, b);
+
+    // Three vendors offer the same title at different unit prices.
+    acq.addVendor("B1", "Vendor A", Money::of(120));
+    acq.addVendor("B1", "Vendor B", Money::of(80));
+    acq.addVendor("B1", "Vendor C", Money::of(100));
+
+    // The cheapest vendor's price is used in the quote.
+    CHECK(acq.quote("B1", 2) == Money::of(160));
+
+    // The purchase uses Vendor B and charges 2 * 80 = 160.
+    const auto& purchase = acq.purchase("B1", 2);
+
+    CHECK(purchase.approved);
+    CHECK(purchase.vendor == "Vendor B");
+    CHECK(purchase.preTaxCost == Money::of(160));
+    CHECK(purchase.postTaxCost == Money::of(160));
+
+    CHECK(c.holdings("B1") == 2);
+    CHECK(b.spent() == Money::of(160));
+
+    // Re-registering an existing vendor updates its price.
+    acq.addVendor("B1", "Vendor B", Money::of(150));
+
+    // Vendor C is now cheapest at 100 per unit.
+    CHECK(acq.quote("B1", 1) == Money::of(100));
+
+    const auto& secondPurchase = acq.purchase("B1", 1);
+
+    CHECK(secondPurchase.approved);
+    CHECK(secondPurchase.vendor == "Vendor C");
+    CHECK(b.spent() == Money::of(260));
+
+    // The chosen vendor is visible in the order history.
+    CHECK(acq.history().size() == 2);
+    CHECK(acq.history()[0].vendor == "Vendor B");
+    CHECK(acq.history()[1].vendor == "Vendor C");
+
+    // Resources without registered vendors use catalog pricing.
+    c.emplace<Book>(
+        "B2", "Catalog Price Book",
+        std::vector<std::string>{"Another Author"},
+        "ISBN-V2", "Publisher", 2025,
+        Money::of(50));
+
+    CHECK(acq.quote("B2", 2) == Money::of(100));
+
+    const auto& catalogPurchase = acq.purchase("B2", 2);
+
+    CHECK(catalogPurchase.approved);
+    CHECK(catalogPurchase.vendor == "Catalog");
+    CHECK(catalogPurchase.preTaxCost == Money::of(100));
+    CHECK(catalogPurchase.postTaxCost == Money::of(100));
+}
+
+
+
 int main() {
     testMoney();
     testResourcesAndCost();
@@ -667,6 +736,7 @@ int main() {
     testDepartmentBudgets();
     testBudgetRollover();
     testAllOrNothingBatch();
+    testVendors();
     
     std::cout << (g_checks - g_failures) << "/" << g_checks << " checks passed\n";
     return g_failures == 0 ? 0 : 1;

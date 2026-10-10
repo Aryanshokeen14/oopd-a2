@@ -31,6 +31,7 @@ struct PurchaseRecord {
     bool cancellation;
     int originalOrderNo;
     std::string department = "Default";
+    std::string vendor = "Catalog";
 };
 
 class AcquisitionManager {
@@ -87,11 +88,24 @@ public:
     const std::vector<PurchaseRequest>& reqs,
     bool allOrNothing = false);
 
+    // Register a vendor's unit price for the resource's title.
+    // Resources with the same title share vendor offers.
+    void addVendor(const std::string& resourceId,
+               const std::string& vendor,
+               Money unitPrice);
+
 private:
-    PurchaseRecord& record(const Resource* r, const std::string& id, int qty,
-                       Money preTaxCost, Money postTaxCost,
-                       bool approved, std::string reason,
-                       std::string department = "Default");
+    const PurchaseRecord& record(
+    const Resource* r,
+    const std::string& id,
+    int qty,
+    Money preTaxCost,
+    Money postTaxCost,
+    bool approved,
+    std::string reason,
+    std::string department = "Default",
+    std::string vendor = ""
+);
     
     Money postTaxCost(const Resource& r, Money preTax) const;
 
@@ -105,6 +119,19 @@ private:
 
     std::map<std::string, Budget> departments_;
     static constexpr const char* kDefaultDepartment = "Default";
+
+    struct VendorOffer {
+        std::string name;
+        Money unitPrice;
+    };
+
+    const VendorOffer* cheapestVendor(const std::string& title) const;
+    std::string vendorFor(const std::string& title) const;
+    Money costAtBestVendor(Resource& resource, int quantity) const;
+
+    std::map<std::string, std::vector<VendorOffer>> vendors_;
+
+
 };
 
 }  // namespace bookmgmt

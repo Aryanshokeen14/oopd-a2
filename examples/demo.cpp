@@ -326,6 +326,42 @@ std::cout << "Budget unchanged: "
           << (budget.spent() == spentBefore ? "YES" : "NO")
           << '\n';
 
+
+    // Q12: Vendor pricing
+    std::cout << "\n=== Q12: Cheapest Vendor ===\n";
+
+    Catalog vendorCatalog;
+    vendorCatalog.emplace<Book>(
+        "V001", "Vendor Demo Book",
+        std::vector<std::string>{"Author"},
+        "ISBN-V001", "Publisher", 2025,
+        Money::of(100));
+
+    Budget vendorBudget(Money::of(1000));
+    vendorBudget.setQuota(
+        ResourceCategory::Book, {10, Money::of(1000)});
+
+    AcquisitionManager vendorAcq(vendorCatalog, vendorBudget);
+
+    vendorAcq.addVendor("V001", "Vendor A", Money::of(120));
+    vendorAcq.addVendor("V001", "Vendor B", Money::of(80));
+    vendorAcq.addVendor("V001", "Vendor C", Money::of(100));
+
+    std::cout << "Quote for 2 copies: "
+              << vendorAcq.quote("V001", 2) << '\n';
+
+    const auto& vendorPurchase = vendorAcq.purchase("V001", 2);
+
+    std::cout << "Approved: "
+              << (vendorPurchase.approved ? "YES" : "NO") << '\n';
+    std::cout << "Selected vendor: "
+              << vendorPurchase.vendor << '\n';
+    std::cout << "Purchase cost: "
+              << vendorPurchase.postTaxCost << '\n';
+
+    vendorAcq.printReport(std::cout);
+
+
 }
 
     return 0;

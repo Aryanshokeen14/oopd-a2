@@ -51,3 +51,19 @@ in order history. If every request passes validation, the batch is
 processed normally.
 
 Tests cover both an aborted batch and a successful batch.
+
+## Q12 — Vendors
+
+Added vendor offers associated with resource titles. Each offer stores
+a vendor name and unit price. When multiple offers exist, the
+AcquisitionManager selects the lowest-priced offer for quotes and
+purchases.
+
+The selected vendor is recorded in each purchase record and displayed
+in the acquisition report. Registering an existing vendor again
+updates that vendor's price.
+
+Resources without registered vendor offers retain their catalog
+pricing and use "Catalog" as the vendor label. Existing tax, budget,
+quota, department, cancellation, and batch-processing behavior is
+preserved.
