@@ -36,3 +36,18 @@
 - Tested 0%, 50%, and 100% rollover.
 - Tested quota preservation and resetting of category and title usage.
 - Tested invalid percentages and confirmed that the original budget remains unchanged.
+
+## Q11 — All-or-Nothing Batch Processing
+
+Added an optional `allOrNothing` parameter to both `processBatch`
+overloads. The default remains `false`, preserving the existing
+independent-request behavior.
+
+When enabled, the entire batch is validated against trial copies of
+the relevant budget or department budgets before purchases are made.
+If any request is rejected, no purchases are committed and catalog
+holdings and spending remain unchanged. Rejected outcomes are recorded
+in order history. If every request passes validation, the batch is
+processed normally.
+
+Tests cover both an aborted batch and a successful batch.

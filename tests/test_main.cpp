@@ -601,6 +601,56 @@ static void testBudgetRollover() {
     CHECK(excessiveRejected);
 }
 
+
+static void testAllOrNothingBatch() {
+    Catalog c;
+
+    c.emplace<Book>(
+        "B1", "Book",
+        std::vector<std::string>{"A"},
+        "ISBN1", "Publisher", 2020,
+        Money::of(100));
+
+    Budget b(Money::of(1000));
+    b.setQuota(ResourceCategory::Book, {10, Money::of(1000)});
+
+    AcquisitionManager acq(c, b);
+
+    // CASE 1: One valid request followed by an invalid request.
+    // The entire batch must be rejected without purchasing anything.
+    auto failed = acq.processBatch(
+        {{"B1", 2}, {"MISSING", 1}},
+        true);
+
+    CHECK(failed.size() == 2);
+    CHECK(!failed[0].approved);
+    CHECK(!failed[1].approved);
+
+    CHECK(failed[1].reason.find("not found") != std::string::npos);
+
+    // No purchase must have occurred.
+    CHECK(c.holdings("B1") == 0);
+    CHECK(b.spent() == Money::of(0));
+    CHECK(acq.totalSpent() == Money::of(0));
+
+    // Rejected outcomes are still recorded in history.
+    CHECK(acq.history().size() == 2);
+
+    // CASE 2: Every request is valid, so the entire batch is purchased.
+    auto successful = acq.processBatch(
+        {{"B1", 2}, {"B1", 1}},
+        true);
+
+    CHECK(successful.size() == 2);
+    CHECK(successful[0].approved);
+    CHECK(successful[1].approved);
+
+    CHECK(c.holdings("B1") == 3);
+    CHECK(b.spent() == Money::of(300));
+    CHECK(acq.totalSpent() == Money::of(300));
+}
+
+
 int main() {
     testMoney();
     testResourcesAndCost();
@@ -616,6 +666,7 @@ int main() {
     testCancellation();
     testDepartmentBudgets();
     testBudgetRollover();
+    testAllOrNothingBatch();
     
     std::cout << (g_checks - g_failures) << "/" << g_checks << " checks passed\n";
     return g_failures == 0 ? 0 : 1;

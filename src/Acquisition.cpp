@@ -177,8 +177,92 @@ const PurchaseRecord& AcquisitionManager::purchase(
 }
 
 std::vector<PurchaseRecord> AcquisitionManager::processBatch(
-    const std::vector<PurchaseRequest>& reqs) {
+    const std::vector<PurchaseRequest>& reqs,
+    bool allOrNothing) {
 
+    // Q11: preflight the whole batch against a copy of the budget.
+    // No real purchases occur during this validation.
+    if (allOrNothing) {
+        Budget trialBudget = budget_;
+
+        std::vector<Money> preTaxCosts(reqs.size());
+        std::vector<Money> postTaxCosts(reqs.size());
+        std::vector<std::string> reasons(reqs.size());
+
+        std::size_t failedIndex = reqs.size();
+
+        for (std::size_t i = 0; i < reqs.size(); ++i) {
+            const auto& req = reqs[i];
+            const Resource* r = catalog_.find(req.resourceId);
+
+            if (!r) {
+                reasons[i] = "resource not found: " + req.resourceId;
+            } else if (req.quantity <= 0) {
+                reasons[i] = "quantity must be positive";
+            } else {
+                try {
+                    preTaxCosts[i] = r->costFor(req.quantity);
+                    postTaxCosts[i] = postTaxCost(*r, preTaxCosts[i]);
+
+                    reasons[i] = trialBudget.check(
+                        r->title(),
+                        r->category(),
+                        req.quantity,
+                        postTaxCosts[i]);
+
+                    if (reasons[i].empty()) {
+                        trialBudget.commit(
+                            r->title(),
+                            r->category(),
+                            req.quantity,
+                            postTaxCosts[i]);
+                    }
+                } catch (const std::exception& e) {
+                    reasons[i] = e.what();
+                }
+            }
+
+            if (!reasons[i].empty()) {
+                failedIndex = i;
+                break;
+            }
+        }
+
+        // If any request fails, do not execute any purchase.
+        if (failedIndex != reqs.size()) {
+            std::vector<PurchaseRecord> results;
+            results.reserve(reqs.size());
+
+            const std::string abortReason =
+                "batch aborted because request " +
+                std::to_string(failedIndex + 1) +
+                " was rejected: " + reasons[failedIndex];
+
+            for (std::size_t i = 0; i < reqs.size(); ++i) {
+                const auto& req = reqs[i];
+                const Resource* r = catalog_.find(req.resourceId);
+
+                const std::string reason =
+                    (i == failedIndex)
+                        ? reasons[i]
+                        : abortReason;
+
+                results.push_back(record(
+                    r,
+                    req.resourceId,
+                    req.quantity,
+                    preTaxCosts[i],
+                    postTaxCosts[i],
+                    false,
+                    reason,
+                    "Default"));
+            }
+
+            return results;
+        }
+    }
+
+    // Normal processing: preserved for the original non-atomic mode.
     std::vector<PurchaseRecord> results;
     results.reserve(reqs.size());
 
@@ -197,22 +281,26 @@ std::vector<PurchaseRecord> AcquisitionManager::processBatch(
             preTax = r->costFor(req.quantity);
             postTax = postTaxCost(*r, preTax);
 
-            // Q6: quota and overall budget are checked using post-tax cost.
-            why = budget_.check(r->title(), r->category(), req.quantity, postTax);
+            // Q6: quota and budget checks use post-tax cost.
+            why = budget_.check(
+                r->title(),
+                r->category(),
+                req.quantity,
+                postTax);
         }
 
         if (why.empty()) {
             results.push_back(purchase(req.resourceId, req.quantity));
         } else {
-            results.push_back(
-                record(r,
-                       req.resourceId,
-                       req.quantity,
-                       preTax,
-                       postTax,
-                       false,
-                       why)
-            );
+            results.push_back(record(
+                r,
+                req.resourceId,
+                req.quantity,
+                preTax,
+                postTax,
+                false,
+                why,
+                "Default"));
         }
     }
 
@@ -221,27 +309,145 @@ std::vector<PurchaseRecord> AcquisitionManager::processBatch(
 
 std::vector<PurchaseRecord> AcquisitionManager::processBatch(
     const std::string& dept,
-    const std::vector<PurchaseRequest>& reqs) {
+    const std::vector<PurchaseRequest>& reqs,
+    bool allOrNothing) {
 
+    // Q11: validate against copies of all department budgets.
+    if (allOrNothing) {
+        auto trialDepartments = departments_;
+
+        std::vector<Money> preTaxCosts(reqs.size());
+        std::vector<Money> postTaxCosts(reqs.size());
+        std::vector<std::string> reasons(reqs.size());
+        std::vector<std::string> chargedDepartments(reqs.size());
+
+        std::size_t failedIndex = reqs.size();
+
+        for (std::size_t i = 0; i < reqs.size(); ++i) {
+            const auto& req = reqs[i];
+
+            const std::string chargedDept =
+                req.department == "Default" ? dept : req.department;
+
+            chargedDepartments[i] = chargedDept;
+
+            auto budgetIt = trialDepartments.find(chargedDept);
+            const Resource* r = catalog_.find(req.resourceId);
+
+            if (budgetIt == trialDepartments.end()) {
+                reasons[i] = "department not found: " + chargedDept;
+            } else if (!r) {
+                reasons[i] = "resource not found: " + req.resourceId;
+            } else if (req.quantity <= 0) {
+                reasons[i] = "quantity must be positive";
+            } else {
+                try {
+                    preTaxCosts[i] = r->costFor(req.quantity);
+                    postTaxCosts[i] = postTaxCost(*r, preTaxCosts[i]);
+
+                    reasons[i] = budgetIt->second.check(
+                        r->title(),
+                        r->category(),
+                        req.quantity,
+                        postTaxCosts[i]);
+
+                    if (reasons[i].empty()) {
+                        budgetIt->second.commit(
+                            r->title(),
+                            r->category(),
+                            req.quantity,
+                            postTaxCosts[i]);
+                    }
+                } catch (const std::exception& e) {
+                    reasons[i] = e.what();
+                }
+            }
+
+            if (!reasons[i].empty()) {
+                failedIndex = i;
+                break;
+            }
+        }
+
+        // A failed preflight means no department is charged and no
+        // catalog holdings are changed.
+        if (failedIndex != reqs.size()) {
+            std::vector<PurchaseRecord> results;
+            results.reserve(reqs.size());
+
+            const std::string abortReason =
+                "batch aborted because request " +
+                std::to_string(failedIndex + 1) +
+                " was rejected: " + reasons[failedIndex];
+
+            for (std::size_t i = 0; i < reqs.size(); ++i) {
+                const auto& req = reqs[i];
+                const Resource* r = catalog_.find(req.resourceId);
+
+                const std::string reason =
+                    (i == failedIndex)
+                        ? reasons[i]
+                        : abortReason;
+
+                results.push_back(record(
+                    r,
+                    req.resourceId,
+                    req.quantity,
+                    preTaxCosts[i],
+                    postTaxCosts[i],
+                    false,
+                    reason,
+                    chargedDepartments[i]));
+            }
+
+            return results;
+        }
+    }
+
+    // Normal processing: preserved for the original non-atomic mode.
     std::vector<PurchaseRecord> results;
+    results.reserve(reqs.size());
 
     for (const auto& req : reqs) {
         const std::string& chargedDept =
             req.department == "Default" ? dept : req.department;
 
         std::string reason;
-        if (!canPurchase(chargedDept, req.resourceId, req.quantity, &reason)) {
-            const Resource* r = catalog_.find(req.resourceId);
-            const Money preTax = r ? r->costFor(req.quantity) : Money{};
-            const Money postTax = r ? postTaxCost(*r, preTax) : Money{};
 
-            results.push_back(record(r, req.resourceId, req.quantity,
-                                     preTax, postTax, false, reason,
-                                     chargedDept));
+        if (!canPurchase(
+                chargedDept,
+                req.resourceId,
+                req.quantity,
+                &reason)) {
+
+            const Resource* r = catalog_.find(req.resourceId);
+            Money preTax;
+            Money postTax;
+
+            if (r && req.quantity > 0) {
+                try {
+                    preTax = r->costFor(req.quantity);
+                    postTax = postTaxCost(*r, preTax);
+                } catch (const std::exception&) {
+                    // Keep default costs when the request cannot be priced.
+                }
+            }
+
+            results.push_back(record(
+                r,
+                req.resourceId,
+                req.quantity,
+                preTax,
+                postTax,
+                false,
+                reason,
+                chargedDept));
+
             continue;
         }
 
-        results.push_back(purchase(chargedDept, req.resourceId, req.quantity));
+        results.push_back(
+            purchase(chargedDept, req.resourceId, req.quantity));
     }
 
     return results;

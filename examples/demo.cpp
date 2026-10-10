@@ -295,6 +295,37 @@ cancelAcq.printReport(std::cout);
     std::cout << "Next-year Book units used: "
               << nextYear.usageFor(ResourceCategory::Book).units
               << '\n';
+
+    // Q11: All-or-nothing batch processing
+std::cout << "\n=== Q11: All-or-Nothing Batch ===\n";
+
+const auto holdingsBefore = catalog.holdings("B001");
+const auto spentBefore = budget.spent();
+
+auto batch = acq.processBatch(
+    {{"B001", 1}, {"INVALID_ID", 1}},
+    true
+);
+
+for (const auto& result : batch) {
+    std::cout << result.resourceId << ": "
+              << (result.approved ? "APPROVED" : "REJECTED");
+
+    if (!result.reason.empty()) {
+        std::cout << " — " << result.reason;
+    }
+
+    std::cout << '\n';
+}
+
+std::cout << "Holdings unchanged: "
+          << (catalog.holdings("B001") == holdingsBefore ? "YES" : "NO")
+          << '\n';
+
+std::cout << "Budget unchanged: "
+          << (budget.spent() == spentBefore ? "YES" : "NO")
+          << '\n';
+
 }
 
     return 0;

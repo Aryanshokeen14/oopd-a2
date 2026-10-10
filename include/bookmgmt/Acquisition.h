@@ -60,9 +60,11 @@ public:
     // Processes requests in order; each is approved or rejected on its own
     // (never throws for a rejected request). Every outcome is recorded.
     // EXTENSION POINT: priority ordering, all-or-nothing batches, ...
-    std::vector<PurchaseRecord> processBatch(const std::vector<PurchaseRequest>& reqs);
+    std::vector<PurchaseRecord> processBatch(
+        const std::vector<PurchaseRequest>& reqs,
+        bool allOrNothing = false);
+        const std::vector<PurchaseRecord>& history() const { return history_; }
 
-    const std::vector<PurchaseRecord>& history() const { return history_; }
     Money totalSpent() const;
 
     void printReport(std::ostream& os) const;
@@ -82,7 +84,8 @@ public:
 
     std::vector<PurchaseRecord> processBatch(
     const std::string& dept,
-    const std::vector<PurchaseRequest>& reqs);
+    const std::vector<PurchaseRequest>& reqs,
+    bool allOrNothing = false);
 
 private:
     PurchaseRecord& record(const Resource* r, const std::string& id, int qty,
