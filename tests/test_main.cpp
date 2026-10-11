@@ -5,88 +5,109 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <cassert>
 
 #include "bookmgmt/bookmgmt.h"
 
 using namespace bookmgmt;
 
-static int g_failures = 0;
-static int g_checks = 0;
+template <typename Exception, typename Callable>
+void assertThrows(Callable&& action) {
+    bool thrown = false;
 
-#define CHECK(cond)                                                              \
-    do {                                                                         \
-        ++g_checks;                                                              \
-        if (!(cond)) {                                                           \
-            ++g_failures;                                                        \
-            std::cerr << __FILE__ << ":" << __LINE__ << ": CHECK failed: " #cond \
-                      << "\n";                                                   \
-        }                                                                        \
-    } while (0)
+    try {
+        action();
+    } catch (const Exception&) {
+        thrown = true;
+    } catch (...) {
+        // A different exception type does not satisfy the test.
+    }
 
-#define CHECK_THROWS(expr, ExType)            \
-    do {                                      \
-        bool thrown_ = false;                 \
-        try {                                 \
-            (void)(expr);                     \
-        } catch (const ExType&) {             \
-            thrown_ = true;                   \
-        } catch (...) {                       \
-        }                                     \
-        CHECK(thrown_ && "expected " #ExType); \
-    } while (0)
+    assert(thrown && "Expected exception was not thrown");
+}
 
 static void testMoney() {
-    CHECK(Money::of(12, 5).toString() == "12.05");
-    CHECK(Money::of(-3, 50).toString() == "-3.50");
-    CHECK(Money::fromMinor(7).toString() == "0.07");
-    CHECK(Money::of(10) + Money::of(0, 50) == Money::fromMinor(1050));
-    CHECK(Money::of(3) * 4 == Money::of(12));
-    CHECK(Money::of(1) < Money::of(2));
-    CHECK_THROWS(Money::of(1, 100), std::invalid_argument);
+    assert(Money::of(12, 5).toString() == "12.05");
+    assert(Money::of(-3, 50).toString() == "-3.50");
+    assert(Money::fromMinor(7).toString() == "0.07");
+    assert(Money::of(10) + Money::of(0, 50) == Money::fromMinor(1050));
+    assert(Money::of(3) * 4 == Money::of(12));
+    assert(Money::of(1) < Money::of(2));
+    assertThrows<std::invalid_argument>(
+    [&] { (void)Money::of(1, 100); }
+);
 
     const Money rupees = Money::of(10, 50, "INR");
     const Money dollars = Money::of(10, 50, "USD");
 
-    CHECK(rupees.currency() == "INR");
-    CHECK(dollars.currency() == "USD");
-    CHECK(rupees.toString() == "10.50");
+    assert(rupees.currency() == "INR");
+    assert(dollars.currency() == "USD");
+    assert(rupees.toString() == "10.50");
 
-    CHECK_THROWS(rupees + dollars, std::invalid_argument);
-    CHECK_THROWS(rupees - dollars, std::invalid_argument);
-    CHECK_THROWS(rupees == dollars, std::invalid_argument);
-    CHECK_THROWS(rupees != dollars, std::invalid_argument);
-    CHECK_THROWS(rupees < dollars, std::invalid_argument);
-    CHECK_THROWS(rupees <= dollars, std::invalid_argument);
-    CHECK_THROWS(rupees > dollars, std::invalid_argument);
-    CHECK_THROWS(rupees >= dollars, std::invalid_argument);
-    CHECK_THROWS(Money::of(1, 0, ""), std::invalid_argument);
+    assertThrows<std::invalid_argument>(
+    [&] { (void)(rupees + dollars); }
+);
+    assertThrows<std::invalid_argument>(
+    [&] { (void)(rupees - dollars); }
+);
+    assertThrows<std::invalid_argument>(
+    [&] { (void)(rupees == dollars); }
+);
+    assertThrows<std::invalid_argument>(
+    [&] { (void)(rupees != dollars); }
+);
+    assertThrows<std::invalid_argument>(
+    [&] { (void)(rupees < dollars); }
+);
+    assertThrows<std::invalid_argument>(
+    [&] { (void)(rupees <= dollars); }
+);
+    assertThrows<std::invalid_argument>(
+    [&] { (void)(rupees > dollars); }
+);
+    assertThrows<std::invalid_argument>(
+    [&] { (void)(rupees >= dollars); }
+);
+    assertThrows<std::invalid_argument>(
+    [&] { (void)Money::of(1, 0, ""); }
+);
 }
 
 static void testResourcesAndCost() {
     Book b("B1", "T", {"A", "B", "C"}, "isbn", "P", 2020, Money::of(100));
-    CHECK(b.category() == ResourceCategory::Book);
-    CHECK(!b.isDigital());
-    CHECK(b.costFor(3) == Money::of(300));
-    CHECK_THROWS(b.costFor(0), std::invalid_argument);
-    CHECK(joinAuthors(b.authors()) == "A, B and C");
+    assert(b.category() == ResourceCategory::Book);
+    assert(!b.isDigital());
+    assert(b.costFor(3) == Money::of(300));
+    assertThrows<std::invalid_argument>(
+    [&] { (void)b.costFor(0); }
+);
+    assert(joinAuthors(b.authors()) == "A, B and C");
 
     ElectronicResource e("R1", "DB", "P", 2026, Money::of(10), "url",
                          LicenseModel::AnnualSubscription, Money::of(100));
-    CHECK(e.isDigital());
-    CHECK(e.costFor(5) == Money::of(150));
+    assert(e.isDigital());
+    assert(e.costFor(5) == Money::of(150));
 
-    CHECK(e.category() == ResourceCategory::ElectronicResource);
+    assert(e.category() == ResourceCategory::ElectronicResource);
 
     // Polymorphism through a base-class reference
     const Resource& r = e;
-    CHECK(r.costFor(1) == Money::of(110));
+    assert(r.costFor(1) == Money::of(110));
     std::ostringstream os;
     os << r;
-    CHECK(os.str().find("platform fee: 100.00") != std::string::npos);
+    assert(os.str().find("platform fee: 100.00") != std::string::npos);
 
-    CHECK_THROWS(Book("", "T", {}, "", "", 2000, Money::of(1)), std::invalid_argument);
-    CHECK_THROWS(Book("B", "T", {}, "", "", 2000, Money::fromMinor(-1)),
-                 std::invalid_argument);
+    assertThrows<std::invalid_argument>(
+    [&] {
+        (void)Book("", "T", {}, "", "", 2000, Money::of(1));
+    }
+);
+
+assertThrows<std::invalid_argument>(
+    [&] {
+        (void)Book("B", "T", {}, "", "", 2000, Money::fromMinor(-1));
+    }
+);
 }
 
 static void testCatalog() {
@@ -98,50 +119,80 @@ static void testCatalog() {
     c.emplace<ElectronicResource>("R1", "ACM Digital Library", "ACM", 2026, Money::of(1),
                                   "url");
 
-    CHECK(c.size() == 3);
-    CHECK(c.contains("B1"));
-    CHECK(c.find("nope") == nullptr);
-    CHECK_THROWS(c.get("nope"), NotFoundError);
-    CHECK_THROWS(c.emplace<Book>("B1", "dup", std::vector<std::string>{}, "", "", 1,
-                                 Money::of(1)),
-                 DuplicateIdError);
+    assert(c.size() == 3);
+    assert(c.contains("B1"));
+    assert(c.find("nope") == nullptr);
+    assertThrows<NotFoundError>(
+    [&] {
+        (void)c.get("nope");
+    }
+);
 
-    CHECK(c.searchTitle("clean").size() == 2);
-    CHECK(c.byCategory(ResourceCategory::ElectronicResource).size() == 1);
-    CHECK(c.where([](const Resource& r) { return r.isDigital(); }).size() == 1);
+assertThrows<DuplicateIdError>(
+    [&] {
+        (void)c.emplace<Book>(
+            "B1", "dup", std::vector<std::string>{}, "", "", 1,
+            Money::of(1)
+        );
+    }
+);
 
-    CHECK(c.holdings("B1") == 0);
+    assert(c.searchTitle("clean").size() == 2);
+    assert(c.byCategory(ResourceCategory::ElectronicResource).size() == 1);
+    assert(c.where([](const Resource& r) { return r.isDigital(); }).size() == 1);
+
+    assert(c.holdings("B1") == 0);
     c.addHoldings("B1", 3);
-    CHECK(c.holdings("B1") == 3);
-    CHECK_THROWS(c.addHoldings("B1", -5), std::invalid_argument);
+    assert(c.holdings("B1") == 3);
+    assertThrows<std::invalid_argument>(
+    [&] {
+        c.addHoldings("B1", -5);
+    }
+);
 
     c.remove("R1");
-    CHECK(c.size() == 2);
-    CHECK_THROWS(c.remove("R1"), NotFoundError);
+    assert(c.size() == 2);
+    assertThrows<NotFoundError>(
+    [&] {
+        c.remove("R1");
+    }
+);
 }
 
 static void testBudget() {
     Budget b(Money::of(1000));
     b.setQuota(ResourceCategory::Book, {5, Money::of(400)});
 
-    CHECK(b.check(ResourceCategory::Book, 2, Money::of(200)).empty());
-    CHECK(!b.check(ResourceCategory::Book, 6, Money::of(10)).empty());   // units
-    CHECK(!b.check(ResourceCategory::Book, 1, Money::of(401)).empty());  // spend
-    CHECK(!b.check(ResourceCategory::ElectronicResource, 1, Money::of(1001)).empty());  // overall
-    CHECK(b.check(ResourceCategory::ElectronicResource, 1, Money::of(900)).empty());    // no quota
+    assert(b.check(ResourceCategory::Book, 2, Money::of(200)).empty());
+assert(!b.check(ResourceCategory::Book, 6, Money::of(10)).empty());   // units
+assert(!b.check(ResourceCategory::Book, 1, Money::of(401)).empty());  // spend
+assert(!b.check(ResourceCategory::ElectronicResource, 1, Money::of(1001)).empty());  // overall
+assert(b.check(ResourceCategory::ElectronicResource, 1, Money::of(900)).empty());    // no quota
 
     b.commit(ResourceCategory::Book, 4, Money::of(300));
-    CHECK(b.spent() == Money::of(300));
-    CHECK(*b.unitsRemaining(ResourceCategory::Book) == 1);
-    CHECK(*b.spendRemaining(ResourceCategory::Book) == Money::of(100));
-    CHECK(!b.unitsRemaining(ResourceCategory::ElectronicResource).has_value());
+    assert(b.spent() == Money::of(300));
+    assert(*b.unitsRemaining(ResourceCategory::Book) == 1);
+    assert(*b.spendRemaining(ResourceCategory::Book) == Money::of(100));
+    assert(!b.unitsRemaining(ResourceCategory::ElectronicResource).has_value());
 
-    CHECK_THROWS(b.commit(ResourceCategory::Book, 2, Money::of(10)), QuotaExceededError);
-    CHECK_THROWS(b.commit(ResourceCategory::ElectronicResource, 1, Money::of(800)),
-                 BudgetExceededError);
-    CHECK_THROWS(b.commit(ResourceCategory::ElectronicResource, 0, Money::of(1)),
-                 std::invalid_argument);
-    CHECK(b.spent() == Money::of(300));  // failed commits changed nothing
+    assertThrows<QuotaExceededError>(
+    [&] {
+        b.commit(ResourceCategory::Book, 2, Money::of(10));
+    }
+);
+
+assertThrows<BudgetExceededError>(
+    [&] {
+        b.commit(ResourceCategory::ElectronicResource, 1, Money::of(800));
+    }
+);
+
+assertThrows<std::invalid_argument>(
+    [&] {
+        b.commit(ResourceCategory::ElectronicResource, 0, Money::of(1));
+    }
+);
+    assert(b.spent() == Money::of(300));  // failed commits changed nothing
 }
 
 static void testAcquisition() {
@@ -154,67 +205,83 @@ static void testAcquisition() {
     b.setQuota(ResourceCategory::Book, {3, Money::of(1000)});
     AcquisitionManager acq(c, b);
 
-    CHECK(acq.quote("R1", 5) == Money::of(100));
+    assert(acq.quote("R1", 5) == Money::of(100));
     std::string why;
-    CHECK(acq.canPurchase("B1", 3, &why) && why.empty());
-    CHECK(!acq.canPurchase("B1", 4, &why) && !why.empty());
-    CHECK(!acq.canPurchase("nope", 1, &why));
+    assert(acq.canPurchase("B1", 3, &why) && why.empty());
+    assert(!acq.canPurchase("B1", 4, &why) && !why.empty());
+    assert(!acq.canPurchase("nope", 1, &why));
 
     const auto& rec = acq.purchase("B1", 2);
-    CHECK(rec.approved &&
+    assert(rec.approved &&
       rec.preTaxCost == Money::of(200) &&
       rec.postTaxCost == Money::of(200) &&
       rec.orderNo == 1);
-    CHECK(c.holdings("B1") == 2);
+    assert(c.holdings("B1") == 2);
 
-    CHECK_THROWS(acq.purchase("B1", 2), QuotaExceededError);
-    CHECK_THROWS(acq.purchase("nope", 1), NotFoundError);
-    CHECK(acq.history().size() == 1);  // exceptions don't record
+    assertThrows<QuotaExceededError>(
+    [&] {
+        (void)acq.purchase("B1", 2);
+    }
+);
+
+assertThrows<NotFoundError>(
+    [&] {
+        (void)acq.purchase("nope", 1);
+    }
+);
+    assert(acq.history().size() == 1);  // exceptions don't record
 
     auto res = acq.processBatch({{"R1", 10}, {"R1", 100}, {"B1", 1}, {"zzz", 1}, {"B1", 0}});
-    CHECK(res.size() == 5);
-    CHECK(res[0].approved &&
+    assert(res.size() == 5);
+    assert(res[0].approved &&
       res[0].preTaxCost == Money::of(150) &&
       res[0].postTaxCost == Money::of(150));
-    CHECK(!res[1].approved);  // 1050 > remaining 150
-    CHECK(res[2].approved);
-    CHECK(!res[3].approved && res[3].reason.find("not found") != std::string::npos);
-    CHECK(!res[4].approved);
-    CHECK(acq.totalSpent() == Money::of(450));
-    CHECK(b.spent() == acq.totalSpent());
-    CHECK(c.holdings("R1") == 10 && c.holdings("B1") == 3);
-    CHECK(acq.history().size() == 6);
+    assert(!res[1].approved);  // 1050 > remaining 150
+    assert(res[2].approved);
+    assert(!res[3].approved && res[3].reason.find("not found") != std::string::npos);
+    assert(!res[4].approved);
+    assert(acq.totalSpent() == Money::of(450));
+    assert(b.spent() == acq.totalSpent());
+    assert(c.holdings("R1") == 10 && c.holdings("B1") == 3);
+    assert(acq.history().size() == 6);
 }
 
 static void testJournal() {
     Journal j("J1", "IEEE Spectrum", "1939-1170", 12,
               "IEEE", 2026, Money::of(500), 2);
 
-    CHECK(j.category() == ResourceCategory::Journal);
-    CHECK(!j.isDigital());
+    assert(j.category() == ResourceCategory::Journal);
+    assert(!j.isDigital());
 
-    CHECK(j.issn() == "1939-1170");
-    CHECK(j.issuesPerYear() == 12);
-    CHECK(j.subscriptionYears() == 2);
+    assert(j.issn() == "1939-1170");
+    assert(j.issuesPerYear() == 12);
+    assert(j.subscriptionYears() == 2);
 
     // 500 per year × 3 copies × 2 years = 3000
-    CHECK(j.costFor(3) == Money::of(3000));
+    assert(j.costFor(3) == Money::of(3000));
 
-    CHECK_THROWS(j.costFor(0), std::invalid_argument);
+    assertThrows<std::invalid_argument>(
+    [&] {
+        (void)j.costFor(0);
+    }
+);
 
-    CHECK_THROWS(
-        Journal("J2", "Nature", "1234-5678", 12,
-                "Publisher", 2026, Money::of(400), 0),
-        std::invalid_argument
-    );
+assertThrows<std::invalid_argument>(
+    [&] {
+        (void)Journal(
+            "J2", "Nature", "1234-5678", 12,
+            "Publisher", 2026, Money::of(400), 0
+        );
+    }
+);
 
     std::ostringstream os;
     os << j;
 
-    CHECK(os.str().find("Journal") != std::string::npos);
-    CHECK(os.str().find("1939-1170") != std::string::npos);
-    CHECK(os.str().find("issues per year: 12") != std::string::npos);
-    CHECK(os.str().find("subscription years: 2") != std::string::npos);
+    assert(os.str().find("Journal") != std::string::npos);
+    assert(os.str().find("1939-1170") != std::string::npos);
+    assert(os.str().find("issues per year: 12") != std::string::npos);
+    assert(os.str().find("subscription years: 2") != std::string::npos);
 }
 
 static void testEBook() {
@@ -233,28 +300,28 @@ static void testEBook() {
         Money::of(50)
     );
 
-    CHECK(ebook.category() == ResourceCategory::EBook);
-    CHECK(ebook.isDigital());
+    assert(ebook.category() == ResourceCategory::EBook);
+    assert(ebook.isDigital());
 
-    CHECK(ebook.authors().size() == 1);
-    CHECK(ebook.authors()[0] == "Robert C. Martin");
-    CHECK(ebook.isbn() == "978-0132350884");
-    CHECK(ebook.format() == EBookFormat::PDF);
-    CHECK(ebook.drmProtected());
+    assert(ebook.authors().size() == 1);
+    assert(ebook.authors()[0] == "Robert C. Martin");
+    assert(ebook.isbn() == "978-0132350884");
+    assert(ebook.format() == EBookFormat::PDF);
+    assert(ebook.drmProtected());
 
     // Pricing is inherited from ElectronicResource:
     // platform fee + price per seat × seats
-    CHECK(ebook.costFor(5) == Money::of(550));
+    assert(ebook.costFor(5) == Money::of(550));
 
     std::ostringstream os;
     os << ebook;
 
-    CHECK(os.str().find("EBook E001") != std::string::npos);
-    CHECK(os.str().find("platform fee: 50.00") != std::string::npos);
-    CHECK(os.str().find("authors: Robert C. Martin") != std::string::npos);
-    CHECK(os.str().find("isbn: 978-0132350884") != std::string::npos);
-    CHECK(os.str().find("format: PDF") != std::string::npos);
-    CHECK(os.str().find("drm protected: yes") != std::string::npos);
+    assert(os.str().find("EBook E001") != std::string::npos);
+    assert(os.str().find("platform fee: 50.00") != std::string::npos);
+    assert(os.str().find("authors: Robert C. Martin") != std::string::npos);
+    assert(os.str().find("isbn: 978-0132350884") != std::string::npos);
+    assert(os.str().find("format: PDF") != std::string::npos);
+    assert(os.str().find("drm protected: yes") != std::string::npos);
 }
 
 static void testAudioBookAndThesis() {
@@ -270,26 +337,27 @@ static void testAudioBookAndThesis() {
         600
     );
 
-    CHECK(audiobook.category() == ResourceCategory::Book);
-    CHECK(!audiobook.isDigital());
+    assert(audiobook.category() == ResourceCategory::Book);
+    assert(!audiobook.isDigital());
 
-    CHECK(audiobook.narrator() == "John Doe");
-    CHECK(audiobook.durationMinutes() == 600);
-    CHECK(audiobook.authors().size() == 1);
-    CHECK(audiobook.isbn() == "978-0132350884");
+    assert(audiobook.narrator() == "John Doe");
+    assert(audiobook.durationMinutes() == 600);
+    assert(audiobook.authors().size() == 1);
+    assert(audiobook.isbn() == "978-0132350884");
 
     std::ostringstream audioDetails;
     audioDetails << audiobook;
 
-    CHECK(audioDetails.str().find("authors: Robert C. Martin")
+    assert(audioDetails.str().find("authors: Robert C. Martin")
           != std::string::npos);
-    CHECK(audioDetails.str().find("narrator: John Doe")
+    assert(audioDetails.str().find("narrator: John Doe")
           != std::string::npos);
-    CHECK(audioDetails.str().find("duration minutes: 600")
+    assert(audioDetails.str().find("duration minutes: 600")
           != std::string::npos);
 
-    CHECK_THROWS(
-        AudioBook(
+    assertThrows<std::invalid_argument>(
+    [&] {
+        (void)AudioBook(
             "A002",
             "Test",
             {"Author"},
@@ -299,12 +367,13 @@ static void testAudioBookAndThesis() {
             Money::of(100),
             "",
             100
-        ),
-        std::invalid_argument
-    );
+        );
+    }
+);
 
-    CHECK_THROWS(
-        AudioBook(
+assertThrows<std::invalid_argument>(
+    [&] {
+        (void)AudioBook(
             "A003",
             "Test",
             {"Author"},
@@ -314,10 +383,9 @@ static void testAudioBookAndThesis() {
             Money::of(100),
             "Narrator",
             0
-        ),
-        std::invalid_argument
-    );
-
+        );
+    }
+);
 
     Thesis thesis(
         "T001",
@@ -330,23 +398,23 @@ static void testAudioBookAndThesis() {
         Money::of(0)
     );
 
-    CHECK(thesis.category() == ResourceCategory::Thesis);
-    CHECK(!thesis.isDigital());
+    assert(thesis.category() == ResourceCategory::Thesis);
+    assert(!thesis.isDigital());
 
-    CHECK(thesis.university() == "IIIT Delhi");
-    CHECK(thesis.degree() == "M.Tech");
-    CHECK(thesis.supervisor() == "Dr. Professor");
+    assert(thesis.university() == "IIIT Delhi");
+    assert(thesis.degree() == "M.Tech");
+    assert(thesis.supervisor() == "Dr. Professor");
 
-    CHECK(thesis.costFor(1) == Money::of(0));
+    assert(thesis.costFor(1) == Money::of(0));
 
     std::ostringstream thesisDetails;
     thesisDetails << thesis;
 
-    CHECK(thesisDetails.str().find("university: IIIT Delhi")
+    assert(thesisDetails.str().find("university: IIIT Delhi")
           != std::string::npos);
-    CHECK(thesisDetails.str().find("degree: M.Tech")
+    assert(thesisDetails.str().find("degree: M.Tech")
           != std::string::npos);
-    CHECK(thesisDetails.str().find("supervisor: Dr. Professor")
+    assert(thesisDetails.str().find("supervisor: Dr. Professor")
           != std::string::npos);
 }
 
@@ -359,8 +427,8 @@ static void testBulkPricing() {
             "Publisher", 2026, Money::of(100),
             1, Binding::Paperback);
 
-        CHECK(paperback.costFor(9) == Money::of(900));
-        CHECK(paperback.costFor(10) == Money::of(900));
+        assert(paperback.costFor(9) == Money::of(900));
+        assert(paperback.costFor(10) == Money::of(900));
     }
 
     // Q5: electronic seats beyond 50 cost half price
@@ -370,8 +438,8 @@ static void testBulkPricing() {
             Money::of(100), "https://example.com",
             LicenseModel::AnnualSubscription, Money::of(50));
 
-        CHECK(ebook.costFor(50) == Money::of(5050));
-        CHECK(ebook.costFor(51) == Money::of(5100));
+        assert(ebook.costFor(50) == Money::of(5050));
+        assert(ebook.costFor(51) == Money::of(5100));
     }
 }
 
@@ -405,11 +473,11 @@ static void testTaxes() {
     // 20% tax on electronic resources
     acq.setElectronicTaxRate(20.0);
 
-    CHECK(acq.printTaxRate() == 10.0);
-    CHECK(acq.electronicTaxRate() == 20.0);
+    assert(acq.printTaxRate() == 10.0);
+    assert(acq.electronicTaxRate() == 20.0);
 
     // Book: 100 pre-tax -> 110 post-tax
-    CHECK(acq.quote("TAX-B1", 1) == Money::of(100));
+    assert(acq.quote("TAX-B1", 1) == Money::of(100));
 
         // Quota is 105. Pre-tax is 100, but 10% tax makes it 110.
     // Therefore the purchase must be rejected.
@@ -420,29 +488,29 @@ static void testTaxes() {
     tightAcq.setPrintTaxRate(10.0);
 
     std::string why;
-    CHECK(!tightAcq.canPurchase("TAX-B1", 1, &why));
+    assert(!tightAcq.canPurchase("TAX-B1", 1, &why));
 
     // std::string why;
-    CHECK(acq.canPurchase("TAX-B1", 1, &why));
-    CHECK(why.empty());
+    assert(acq.canPurchase("TAX-B1", 1, &why));
+    assert(why.empty());
 
     const auto& bookRecord = acq.purchase("TAX-B1", 1);
 
-    CHECK(bookRecord.preTaxCost == Money::of(100));
-    CHECK(bookRecord.postTaxCost == Money::of(110));
+    assert(bookRecord.preTaxCost == Money::of(100));
+    assert(bookRecord.postTaxCost == Money::of(110));
 
     // Electronic: 100 pre-tax -> 120 post-tax
-    CHECK(acq.canPurchase("TAX-E1", 1, &why));
-    CHECK(why.empty());
+    assert(acq.canPurchase("TAX-E1", 1, &why));
+    assert(why.empty());
 
     const auto& ebookRecord = acq.purchase("TAX-E1", 1);
 
-    CHECK(ebookRecord.preTaxCost == Money::of(100));
-    CHECK(ebookRecord.postTaxCost == Money::of(120));
+    assert(ebookRecord.preTaxCost == Money::of(100));
+    assert(ebookRecord.postTaxCost == Money::of(120));
 
     // Budget spent must use post-tax amounts.
-    CHECK(b.spent() == Money::of(230));
-    CHECK(acq.totalSpent() == Money::of(230));
+    assert(b.spent() == Money::of(230));
+    assert(acq.totalSpent() == Money::of(230));
 }
 
 static void testTitleQuota() {
@@ -450,34 +518,37 @@ static void testTitleQuota() {
 
     budget.setTitleQuota("Algorithms", 5);
 
-    CHECK(budget.titleQuotaFor("Algorithms").has_value());
-    CHECK(*budget.titleQuotaFor("Algorithms") == 5);
-    CHECK(budget.titleUsage("Algorithms") == 0);
+    assert(budget.titleQuotaFor("Algorithms").has_value());
+    assert(*budget.titleQuotaFor("Algorithms") == 5);
+    assert(budget.titleUsage("Algorithms") == 0);
 
     budget.commit("Algorithms",
                   ResourceCategory::Book,
                   3,
                   Money::of(300));
 
-    CHECK(budget.titleUsage("Algorithms") == 3);
+    assert(budget.titleUsage("Algorithms") == 3);
 
-    CHECK(budget.check("Algorithms",
+    assert(budget.check("Algorithms",
                        ResourceCategory::Book,
                        2,
                        Money::of(200)).empty());
 
-    CHECK(!budget.check("Algorithms",
+    assert(!budget.check("Algorithms",
                         ResourceCategory::Book,
                         3,
                         Money::of(300)).empty());
 
-    CHECK_THROWS(
-        budget.commit("Algorithms",
-                      ResourceCategory::Book,
-                      3,
-                      Money::of(300)),
-        QuotaExceededError
-    );
+    assertThrows<QuotaExceededError>(
+    [&] {
+        budget.commit(
+            "Algorithms",
+            ResourceCategory::Book,
+            3,
+            Money::of(300)
+        );
+    }
+);
 }
 
 static void testCancellation() {
@@ -501,21 +572,21 @@ static void testCancellation() {
 
     const auto order = acq.purchase("CANCEL-B1", 3);
 
-    CHECK(order.approved);
-    CHECK(budget.spent() == Money::of(300));
-    CHECK(budget.titleUsage("Cancellation Book") == 3);
+    assert(order.approved);
+    assert(budget.spent() == Money::of(300));
+    assert(budget.titleUsage("Cancellation Book") == 3);
 
-    CHECK(acq.cancel(order.orderNo));
+    assert(acq.cancel(order.orderNo));
 
-    CHECK(budget.spent() == Money{});
-    CHECK(budget.titleUsage("Cancellation Book") == 0);
-    CHECK(acq.totalSpent() == Money{});
-    CHECK(acq.history().size() == 2);
-    CHECK(acq.history()[0].cancellation == false);
-    CHECK(acq.history()[1].cancellation == true);
-    CHECK(acq.history()[1].originalOrderNo == order.orderNo);
+    assert(budget.spent() == Money{});
+    assert(budget.titleUsage("Cancellation Book") == 0);
+    assert(acq.totalSpent() == Money{});
+    assert(acq.history().size() == 2);
+    assert(acq.history()[0].cancellation == false);
+    assert(acq.history()[1].cancellation == true);
+    assert(acq.history()[1].originalOrderNo == order.orderNo);
 
-    CHECK(!acq.cancel(order.orderNo));
+    assert(!acq.cancel(order.orderNo));
 }
 
 static void testDepartmentBudgets() {
@@ -541,17 +612,17 @@ static void testDepartmentBudgets() {
 
     const auto& order = acq.purchase("Computer Science", "DEPT-B1", 2);
 
-    CHECK(order.approved);
-    CHECK(order.department == "Computer Science");
-    CHECK(acq.departmentBudget("Computer Science")->spent()
+    assert(order.approved);
+    assert(order.department == "Computer Science");
+    assert(acq.departmentBudget("Computer Science")->spent()
           == Money::of(200));
-    CHECK(acq.departmentBudget("Physics")->spent() == Money{});
+    assert(acq.departmentBudget("Physics")->spent() == Money{});
 
-    CHECK(!acq.canPurchase("Unknown", "DEPT-B1", 1));
+    assert(!acq.canPurchase("Unknown", "DEPT-B1", 1));
 
-    CHECK(acq.cancel(order.orderNo));
-    CHECK(acq.departmentBudget("Computer Science")->spent() == Money{});
-    CHECK(acq.departmentBudget("Physics")->spent() == Money{});
+    assert(acq.cancel(order.orderNo));
+    assert(acq.departmentBudget("Computer Science")->spent() == Money{});
+    assert(acq.departmentBudget("Physics")->spent() == Money{});
 }
 
 static void testBudgetRollover() {
@@ -573,33 +644,33 @@ static void testBudgetRollover() {
     // Current balance: 1000 - 300 = 700.
     Budget nextYear = currentYear.rollover(50);
 
-    CHECK(nextYear.total() == Money::of(350));
-    CHECK(nextYear.spent() == Money{});
-    CHECK(nextYear.remaining() == Money::of(350));
+    assert(nextYear.total() == Money::of(350));
+    assert(nextYear.spent() == Money{});
+    assert(nextYear.remaining() == Money::of(350));
 
     // Category quota carries forward, but category usage resets.
     const auto bookQuota = nextYear.quotaFor(ResourceCategory::Book);
-    CHECK(bookQuota.has_value());
+    assert(bookQuota.has_value());
 
     if (bookQuota) {
-        CHECK(bookQuota->maxUnits == 10);
-        CHECK(bookQuota->maxSpend == Money::of(800));
+        assert(bookQuota->maxUnits == 10);
+        assert(bookQuota->maxSpend == Money::of(800));
     }
 
-    CHECK(nextYear.usageFor(ResourceCategory::Book).units == 0);
-    CHECK(nextYear.usageFor(ResourceCategory::Book).spent == Money{});
+    assert(nextYear.usageFor(ResourceCategory::Book).units == 0);
+    assert(nextYear.usageFor(ResourceCategory::Book).spent == Money{});
 
     // Title quota carries forward, but title usage resets.
-    CHECK(nextYear.titleQuotaFor("Rollover Book").has_value());
-    CHECK(nextYear.titleQuotaFor("Rollover Book").value() == 5);
-    CHECK(nextYear.titleUsage("Rollover Book") == 0);
+    assert(nextYear.titleQuotaFor("Rollover Book").has_value());
+    assert(nextYear.titleQuotaFor("Rollover Book").value() == 5);
+    assert(nextYear.titleUsage("Rollover Book") == 0);
 
     // The original budget remains unchanged.
-    CHECK(currentYear.spent() == Money::of(300));
-    CHECK(currentYear.titleUsage("Rollover Book") == 3);
+    assert(currentYear.spent() == Money::of(300));
+    assert(currentYear.titleUsage("Rollover Book") == 3);
 
-    CHECK(currentYear.rollover(0).total() == Money{});
-    CHECK(currentYear.rollover(100).total() == Money::of(700));
+    assert(currentYear.rollover(0).total() == Money{});
+    assert(currentYear.rollover(100).total() == Money::of(700));
 
     bool negativeRejected = false;
     try {
@@ -607,7 +678,7 @@ static void testBudgetRollover() {
     } catch (const std::invalid_argument&) {
         negativeRejected = true;
     }
-    CHECK(negativeRejected);
+    assert(negativeRejected);
 
     bool excessiveRejected = false;
     try {
@@ -615,7 +686,7 @@ static void testBudgetRollover() {
     } catch (const std::invalid_argument&) {
         excessiveRejected = true;
     }
-    CHECK(excessiveRejected);
+    assert(excessiveRejected);
 }
 
 
@@ -639,32 +710,32 @@ static void testAllOrNothingBatch() {
         {{"B1", 2}, {"MISSING", 1}},
         true);
 
-    CHECK(failed.size() == 2);
-    CHECK(!failed[0].approved);
-    CHECK(!failed[1].approved);
+    assert(failed.size() == 2);
+    assert(!failed[0].approved);
+    assert(!failed[1].approved);
 
-    CHECK(failed[1].reason.find("not found") != std::string::npos);
+    assert(failed[1].reason.find("not found") != std::string::npos);
 
     // No purchase must have occurred.
-    CHECK(c.holdings("B1") == 0);
-    CHECK(b.spent() == Money::of(0));
-    CHECK(acq.totalSpent() == Money::of(0));
+    assert(c.holdings("B1") == 0);
+    assert(b.spent() == Money::of(0));
+    assert(acq.totalSpent() == Money::of(0));
 
     // Rejected outcomes are still recorded in history.
-    CHECK(acq.history().size() == 2);
+    assert(acq.history().size() == 2);
 
     // CASE 2: Every request is valid, so the entire batch is purchased.
     auto successful = acq.processBatch(
         {{"B1", 2}, {"B1", 1}},
         true);
 
-    CHECK(successful.size() == 2);
-    CHECK(successful[0].approved);
-    CHECK(successful[1].approved);
+    assert(successful.size() == 2);
+    assert(successful[0].approved);
+    assert(successful[1].approved);
 
-    CHECK(c.holdings("B1") == 3);
-    CHECK(b.spent() == Money::of(300));
-    CHECK(acq.totalSpent() == Money::of(300));
+    assert(c.holdings("B1") == 3);
+    assert(b.spent() == Money::of(300));
+    assert(acq.totalSpent() == Money::of(300));
 }
 
 
@@ -688,35 +759,35 @@ static void testVendors() {
     acq.addVendor("B1", "Vendor C", Money::of(100));
 
     // The cheapest vendor's price is used in the quote.
-    CHECK(acq.quote("B1", 2) == Money::of(160));
+    assert(acq.quote("B1", 2) == Money::of(160));
 
     // The purchase uses Vendor B and charges 2 * 80 = 160.
     const auto& purchase = acq.purchase("B1", 2);
 
-    CHECK(purchase.approved);
-    CHECK(purchase.vendor == "Vendor B");
-    CHECK(purchase.preTaxCost == Money::of(160));
-    CHECK(purchase.postTaxCost == Money::of(160));
+    assert(purchase.approved);
+    assert(purchase.vendor == "Vendor B");
+    assert(purchase.preTaxCost == Money::of(160));
+    assert(purchase.postTaxCost == Money::of(160));
 
-    CHECK(c.holdings("B1") == 2);
-    CHECK(b.spent() == Money::of(160));
+    assert(c.holdings("B1") == 2);
+    assert(b.spent() == Money::of(160));
 
     // Re-registering an existing vendor updates its price.
     acq.addVendor("B1", "Vendor B", Money::of(150));
 
     // Vendor C is now cheapest at 100 per unit.
-    CHECK(acq.quote("B1", 1) == Money::of(100));
+    assert(acq.quote("B1", 1) == Money::of(100));
 
     const auto& secondPurchase = acq.purchase("B1", 1);
 
-    CHECK(secondPurchase.approved);
-    CHECK(secondPurchase.vendor == "Vendor C");
-    CHECK(b.spent() == Money::of(260));
+    assert(secondPurchase.approved);
+    assert(secondPurchase.vendor == "Vendor C");
+    assert(b.spent() == Money::of(260));
 
     // The chosen vendor is visible in the order history.
-    CHECK(acq.history().size() == 2);
-    CHECK(acq.history()[0].vendor == "Vendor B");
-    CHECK(acq.history()[1].vendor == "Vendor C");
+    assert(acq.history().size() == 2);
+    assert(acq.history()[0].vendor == "Vendor B");
+    assert(acq.history()[1].vendor == "Vendor C");
 
     // Resources without registered vendors use catalog pricing.
     c.emplace<Book>(
@@ -725,14 +796,14 @@ static void testVendors() {
         "ISBN-V2", "Publisher", 2025,
         Money::of(50));
 
-    CHECK(acq.quote("B2", 2) == Money::of(100));
+    assert(acq.quote("B2", 2) == Money::of(100));
 
     const auto& catalogPurchase = acq.purchase("B2", 2);
 
-    CHECK(catalogPurchase.approved);
-    CHECK(catalogPurchase.vendor == "Catalog");
-    CHECK(catalogPurchase.preTaxCost == Money::of(100));
-    CHECK(catalogPurchase.postTaxCost == Money::of(100));
+    assert(catalogPurchase.approved);
+    assert(catalogPurchase.vendor == "Catalog");
+    assert(catalogPurchase.preTaxCost == Money::of(100));
+    assert(catalogPurchase.postTaxCost == Money::of(100));
 }
 
 static void testCatalogSearches() {
@@ -757,27 +828,27 @@ static void testCatalogSearches() {
 
     // Search by author: case-insensitive partial match.
     const auto authorResults = catalog.searchAuthor("alice");
-    CHECK(authorResults.size() == 2);
+    assert(authorResults.size() == 2);
 
     // Search by ISBN or ISSN.
     const auto bookResults = catalog.searchIdentifier("ISBN-111");
-    CHECK(bookResults.size() == 1);
-    CHECK(bookResults[0]->id() == "B1");
+    assert(bookResults.size() == 1);
+    assert(bookResults[0]->id() == "B1");
 
     const auto ebookResults = catalog.searchIdentifier("ISBN-222");
-    CHECK(ebookResults.size() == 1);
-    CHECK(ebookResults[0]->id() == "E1");
+    assert(ebookResults.size() == 1);
+    assert(ebookResults[0]->id() == "E1");
 
     const auto journalResults = catalog.searchIdentifier("ISSN-333");
-    CHECK(journalResults.size() == 1);
-    CHECK(journalResults[0]->id() == "J1");
+    assert(journalResults.size() == 1);
+    assert(journalResults[0]->id() == "J1");
 
     // Inclusive publication-year range: 2022 through 2024.
     const auto yearResults = catalog.searchYearRange(2022, 2024);
-    CHECK(yearResults.size() == 2);
+    assert(yearResults.size() == 2);
 
     // A year range with no matches.
-    CHECK(catalog.searchYearRange(1990, 1999).empty());
+    assert(catalog.searchYearRange(1990, 1999).empty());
 
     // Invalid year range.
     bool threw = false;
@@ -786,7 +857,7 @@ static void testCatalogSearches() {
     } catch (const std::invalid_argument&) {
         threw = true;
     }
-    CHECK(threw);
+    assert(threw);
 }
 
 static void testLending() {
@@ -803,31 +874,39 @@ static void testLending() {
     catalog.borrowCopy("LEND-B1", "Alice");
     catalog.borrowCopy("LEND-B1", "Bob");
 
-    CHECK(catalog.borrowedCopies("LEND-B1") == 2);
-    CHECK_THROWS(
-        catalog.borrowCopy("LEND-B1", "Charlie"),
-        std::invalid_argument);
+    assert(catalog.borrowedCopies("LEND-B1") == 2);
+    assertThrows<std::invalid_argument>(
+    [&] {
+        catalog.borrowCopy("LEND-B1", "Charlie");
+    }
+);
 
-    // Cannot reduce holdings below the number of borrowed copies.
-    CHECK_THROWS(
-        catalog.addHoldings("LEND-B1", -1),
-        std::invalid_argument);
+// Cannot reduce holdings below the number of borrowed copies.
+assertThrows<std::invalid_argument>(
+    [&] {
+        catalog.addHoldings("LEND-B1", -1);
+    }
+);
 
     // Returning a copy frees capacity.
     catalog.returnCopy("LEND-B1", "Alice");
-    CHECK(catalog.borrowedCopies("LEND-B1") == 1);
+    assert(catalog.borrowedCopies("LEND-B1") == 1);
 
     catalog.borrowCopy("LEND-B1", "Charlie");
-    CHECK(catalog.borrowedCopies("LEND-B1") == 2);
+    assert(catalog.borrowedCopies("LEND-B1") == 2);
 
-    CHECK_THROWS(
-        catalog.returnCopy("LEND-B1", "Unknown"),
-        std::invalid_argument);
+    assertThrows<std::invalid_argument>(
+    [&] {
+        catalog.returnCopy("LEND-B1", "Unknown");
+    }
+);
 
-    // Print resources cannot open electronic sessions.
-    CHECK_THROWS(
-        catalog.openSession("LEND-B1", "Alice"),
-        std::invalid_argument);
+// Print resources cannot open electronic sessions.
+assertThrows<std::invalid_argument>(
+    [&] {
+        catalog.openSession("LEND-B1", "Alice");
+    }
+);
 
     // Electronic resource with two licensed seats.
     catalog.emplace<ElectronicResource>(
@@ -839,39 +918,52 @@ static void testLending() {
     catalog.openSession("LEND-E1", "Alice");
     catalog.openSession("LEND-E1", "Bob");
 
-    CHECK(catalog.activeSessions("LEND-E1") == 2);
+    assert(catalog.activeSessions("LEND-E1") == 2);
 
-    CHECK_THROWS(
-        catalog.openSession("LEND-E1", "Charlie"),
-        std::invalid_argument);
+    assertThrows<std::invalid_argument>(
+    [&] {
+        catalog.openSession("LEND-E1", "Charlie");
+    }
+);
 
-    CHECK_THROWS(
-        catalog.addHoldings("LEND-E1", -1),
-        std::invalid_argument);
+assertThrows<std::invalid_argument>(
+    [&] {
+        catalog.addHoldings("LEND-E1", -1);
+    }
+);
 
     // Closing a session frees a licensed seat.
     catalog.closeSession("LEND-E1", "Alice");
-    CHECK(catalog.activeSessions("LEND-E1") == 1);
+    assert(catalog.activeSessions("LEND-E1") == 1);
 
     catalog.openSession("LEND-E1", "Charlie");
-    CHECK(catalog.activeSessions("LEND-E1") == 2);
+    assert(catalog.activeSessions("LEND-E1") == 2);
 
-    CHECK_THROWS(
-        catalog.closeSession("LEND-E1", "Unknown"),
-        std::invalid_argument);
+    assertThrows<std::invalid_argument>(
+    [&] {
+        catalog.closeSession("LEND-E1", "Unknown");
+    }
+);
 
-    // Electronic resources cannot be borrowed as print copies.
-    CHECK_THROWS(
-        catalog.borrowCopy("LEND-E1", "Alice"),
-        std::invalid_argument);
+// Electronic resources cannot be borrowed as print copies.
+assertThrows<std::invalid_argument>(
+    [&] {
+        catalog.borrowCopy("LEND-E1", "Alice");
+    }
+);
 
-    // Unknown resource IDs must be rejected.
-    CHECK_THROWS(
-        catalog.borrowCopy("MISSING", "Alice"),
-        NotFoundError);
-    CHECK_THROWS(
-        catalog.openSession("MISSING", "Alice"),
-        NotFoundError);
+// Unknown resource IDs must be rejected.
+assertThrows<NotFoundError>(
+    [&] {
+        catalog.borrowCopy("MISSING", "Alice");
+    }
+);
+
+assertThrows<NotFoundError>(
+    [&] {
+        catalog.openSession("MISSING", "Alice");
+    }
+);
 }
 
 int main() {
@@ -894,6 +986,5 @@ int main() {
     testCatalogSearches();
     testLending();
     
-    std::cout << (g_checks - g_failures) << "/" << g_checks << " checks passed\n";
-    return g_failures == 0 ? 0 : 1;
+    return 0;
 }

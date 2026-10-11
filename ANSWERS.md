@@ -176,3 +176,17 @@ Extended the `Money` class to store a currency code alongside the amount, while 
 **Design decision:** Currency codes are stored as strings. Arithmetic and comparisons validate currency compatibility before operating on the integer minor-unit values. No implicit currency conversion is performed.
 
 **Testing:** Added tests for currency storage, default currency behavior, mixed-currency arithmetic, all comparison operators, and empty currency codes. All 243 checks passed.
+
+
+### Q16 — Replace Test Macros with `assert`
+
+Replaced the custom `CHECK` and `CHECK_THROWS` test macros with standard C++ `assert` and a templated `assertThrows` helper.
+
+- **Ordinary checks:** Replaced `CHECK(condition)` with `assert(condition)`.
+- **Exception checks:** Replaced `CHECK_THROWS(expression, ExceptionType)` with `assertThrows<ExceptionType>(...)`.
+- **Exception validation:** The helper passes only when the expected exception type is caught; a different exception type does not satisfy the test.
+- **Test coverage:** Preserved the existing test cases while removing the custom check counters and failure-summary output.
+
+**Design decision:** Standard `assert` is used for Boolean conditions, while `assertThrows` provides equivalent expected-exception checks.
+
+**Testing:** The project builds successfully after the test framework conversion. Assertions must remain enabled during test execution.
