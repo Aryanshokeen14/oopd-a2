@@ -40,6 +40,17 @@ public:
     int holdings(const std::string& id) const;
     void addHoldings(const std::string& id, int units);
 
+    // Q14: Lending and electronic access sessions.
+    void borrowCopy(const std::string& id, const std::string& patron);
+    void returnCopy(const std::string& id, const std::string& patron);
+
+    void openSession(const std::string& id, const std::string& patron);
+    void closeSession(const std::string& id, const std::string& patron);
+
+    int borrowedCopies(const std::string& id) const;
+    int activeSessions(const std::string& id) const;
+
+
     // Queries. Results are in id order and point into the catalog.
     std::vector<const Resource*> all() const;
     std::vector<const Resource*> byCategory(ResourceCategory c) const;
@@ -58,7 +69,12 @@ private:
     struct Entry {
         std::unique_ptr<Resource> resource;
         int holdings = 0;
+
+        // Q14: Active loans and electronic sessions, tracked by patron.
+        std::map<std::string, int> borrowedByPatron;
+        std::map<std::string, int> sessionsByPatron;
     };
+
     std::map<std::string, Entry> items_;
 };
 

@@ -409,6 +409,51 @@ std::cout << "Budget unchanged: "
                   << " (" << r->year() << ")\n";
     }
 
+    // Q14: Lending and electronic sessions.
+std::cout << "\n=== Q14: Lending ===\n";
+
+Catalog lendingCatalog;
+
+lendingCatalog.emplace<Book>(
+    "LEND-B1", "Lending Book",
+    std::vector<std::string>{"Test Author"},
+    "ISBN-L1", "Publisher", 2024, Money::of(100));
+
+lendingCatalog.addHoldings("LEND-B1", 2);
+
+lendingCatalog.borrowCopy("LEND-B1", "Alice");
+lendingCatalog.borrowCopy("LEND-B1", "Bob");
+
+std::cout << "Borrowed print copies: "
+          << lendingCatalog.borrowedCopies("LEND-B1") << "/"
+          << lendingCatalog.holdings("LEND-B1") << '\n';
+
+lendingCatalog.returnCopy("LEND-B1", "Alice");
+
+std::cout << "After Alice returns a copy: "
+          << lendingCatalog.borrowedCopies("LEND-B1") << "/"
+          << lendingCatalog.holdings("LEND-B1") << '\n';
+
+lendingCatalog.emplace<ElectronicResource>(
+    "LEND-E1", "Online Database", "Publisher", 2024,
+    Money::of(10), "https://example.com",
+    LicenseModel::AnnualSubscription, Money{});
+
+lendingCatalog.addHoldings("LEND-E1", 2);
+
+lendingCatalog.openSession("LEND-E1", "Alice");
+lendingCatalog.openSession("LEND-E1", "Bob");
+
+std::cout << "Active electronic sessions: "
+          << lendingCatalog.activeSessions("LEND-E1") << "/"
+          << lendingCatalog.holdings("LEND-E1") << '\n';
+
+lendingCatalog.closeSession("LEND-E1", "Alice");
+
+std::cout << "After Alice closes a session: "
+          << lendingCatalog.activeSessions("LEND-E1") << "/"
+          << lendingCatalog.holdings("LEND-E1") << '\n';
+
 }
 
     return 0;

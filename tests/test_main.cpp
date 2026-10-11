@@ -772,6 +772,90 @@ static void testCatalogSearches() {
     CHECK(threw);
 }
 
+static void testLending() {
+    Catalog catalog;
+
+    // Two print copies.
+    catalog.emplace<Book>(
+        "LEND-B1", "Lending Book",
+        std::vector<std::string>{"Test Author"},
+        "ISBN-L1", "Publisher", 2024, Money::of(100));
+    catalog.addHoldings("LEND-B1", 2);
+
+    // Only two copies can be borrowed at once.
+    catalog.borrowCopy("LEND-B1", "Alice");
+    catalog.borrowCopy("LEND-B1", "Bob");
+
+    CHECK(catalog.borrowedCopies("LEND-B1") == 2);
+    CHECK_THROWS(
+        catalog.borrowCopy("LEND-B1", "Charlie"),
+        std::invalid_argument);
+
+    // Cannot reduce holdings below the number of borrowed copies.
+    CHECK_THROWS(
+        catalog.addHoldings("LEND-B1", -1),
+        std::invalid_argument);
+
+    // Returning a copy frees capacity.
+    catalog.returnCopy("LEND-B1", "Alice");
+    CHECK(catalog.borrowedCopies("LEND-B1") == 1);
+
+    catalog.borrowCopy("LEND-B1", "Charlie");
+    CHECK(catalog.borrowedCopies("LEND-B1") == 2);
+
+    CHECK_THROWS(
+        catalog.returnCopy("LEND-B1", "Unknown"),
+        std::invalid_argument);
+
+    // Print resources cannot open electronic sessions.
+    CHECK_THROWS(
+        catalog.openSession("LEND-B1", "Alice"),
+        std::invalid_argument);
+
+    // Electronic resource with two licensed seats.
+    catalog.emplace<ElectronicResource>(
+        "LEND-E1", "Online Database", "Publisher", 2024,
+        Money::of(10), "https://example.com",
+        LicenseModel::AnnualSubscription, Money{});
+    catalog.addHoldings("LEND-E1", 2);
+
+    catalog.openSession("LEND-E1", "Alice");
+    catalog.openSession("LEND-E1", "Bob");
+
+    CHECK(catalog.activeSessions("LEND-E1") == 2);
+
+    CHECK_THROWS(
+        catalog.openSession("LEND-E1", "Charlie"),
+        std::invalid_argument);
+
+    CHECK_THROWS(
+        catalog.addHoldings("LEND-E1", -1),
+        std::invalid_argument);
+
+    // Closing a session frees a licensed seat.
+    catalog.closeSession("LEND-E1", "Alice");
+    CHECK(catalog.activeSessions("LEND-E1") == 1);
+
+    catalog.openSession("LEND-E1", "Charlie");
+    CHECK(catalog.activeSessions("LEND-E1") == 2);
+
+    CHECK_THROWS(
+        catalog.closeSession("LEND-E1", "Unknown"),
+        std::invalid_argument);
+
+    // Electronic resources cannot be borrowed as print copies.
+    CHECK_THROWS(
+        catalog.borrowCopy("LEND-E1", "Alice"),
+        std::invalid_argument);
+
+    // Unknown resource IDs must be rejected.
+    CHECK_THROWS(
+        catalog.borrowCopy("MISSING", "Alice"),
+        NotFoundError);
+    CHECK_THROWS(
+        catalog.openSession("MISSING", "Alice"),
+        NotFoundError);
+}
 
 int main() {
     testMoney();
@@ -791,6 +875,7 @@ int main() {
     testAllOrNothingBatch();
     testVendors();
     testCatalogSearches();
+    testLending();
     
     std::cout << (g_checks - g_failures) << "/" << g_checks << " checks passed\n";
     return g_failures == 0 ? 0 : 1;

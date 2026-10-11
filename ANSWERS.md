@@ -146,3 +146,18 @@ Extended the catalogue with searches by author, ISBN/ISSN, and publication-year 
 - **Publication-year search:** Returns resources whose publication years fall within the specified inclusive range.
 
 The searches reuse the existing `where()` filtering method and return results in catalogue ID order. Invalid year ranges are rejected, and empty author or identifier queries return no results.
+
+
+### Q14 — Lending
+
+Implemented lending and electronic access-session management in `Catalog`.
+
+- **Print resources:** Patrons can borrow and return copies. The total number of borrowed copies cannot exceed the resource's holdings.
+- **Electronic resources:** Patrons can open and close access sessions. The number of active sessions cannot exceed the number of licensed seats.
+- **Availability tracking:** Active loans and sessions are tracked separately for each patron and resource.
+- **Validation:** Rejects attempts to exceed availability, return a copy that the patron has not borrowed, close a session that is not active, or use a print-lending operation on an electronic resource and vice versa.
+- **Holdings integrity:** Holdings cannot be reduced below the number of active loans or sessions.
+
+**Design decision:** Lending and session tracking are implemented in `Catalog`, which already owns resources and maintains their holdings. This keeps availability management alongside catalogue inventory management.
+
+**Testing:** Added tests for borrowing limits, returns, session limits, closing sessions, invalid operations, and missing resource IDs. All 231 checks passed after adding the Q14 tests.
