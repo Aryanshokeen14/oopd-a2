@@ -161,3 +161,18 @@ Implemented lending and electronic access-session management in `Catalog`.
 **Design decision:** Lending and session tracking are implemented in `Catalog`, which already owns resources and maintains their holdings. This keeps availability management alongside catalogue inventory management.
 
 **Testing:** Added tests for borrowing limits, returns, session limits, closing sessions, invalid operations, and missing resource IDs. All 231 checks passed after adding the Q14 tests.
+
+
+### Q15 — Currency Support in Money
+
+Extended the `Money` class to store a currency code alongside the amount, while retaining integer-based fixed-point storage in minor units.
+
+- **Currency code:** Added a `currency()` accessor and optional currency-code parameters to `Money::of()` and `Money::fromMinor()`. The default currency is `INR` for backward compatibility.
+- **Arithmetic validation:** Addition and subtraction throw `std::invalid_argument` when the operands use different currencies.
+- **Comparison validation:** All six comparison operators (`==`, `!=`, `<`, `<=`, `>`, and `>=`) throw `std::invalid_argument` when the currencies differ.
+- **Input validation:** An empty currency code is rejected by the `Money::of()` factory.
+- **Compatibility:** Existing calls such as `Money::of(10)` and `Money::fromMinor(1050)` continue to work using INR by default.
+
+**Design decision:** Currency codes are stored as strings. Arithmetic and comparisons validate currency compatibility before operating on the integer minor-unit values. No implicit currency conversion is performed.
+
+**Testing:** Added tests for currency storage, default currency behavior, mixed-currency arithmetic, all comparison operators, and empty currency codes. All 243 checks passed.

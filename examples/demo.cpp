@@ -454,6 +454,22 @@ std::cout << "After Alice closes a session: "
           << lendingCatalog.activeSessions("LEND-E1") << "/"
           << lendingCatalog.holdings("LEND-E1") << '\n';
 
+              std::cout << "\n=== Q15: Currency Support ===\n";
+
+    Money inr = Money::of(100, 50, "INR");
+    Money usd = Money::of(100, 50, "USD");
+
+    std::cout << "INR amount: " << inr << " " << inr.currency() << '\n';
+    std::cout << "USD amount: " << usd << " " << usd.currency() << '\n';
+
+    try {
+        Money total = inr + usd;
+        std::cout << "Total: " << total << '\n';
+    } catch (const std::invalid_argument& e) {
+        std::cout << "Mixed-currency addition rejected: "
+                  << e.what() << '\n';
+    }
+
 }
 
     return 0;
