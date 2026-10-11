@@ -3,6 +3,9 @@
 #include <algorithm>
 #include <cctype>
 #include <stdexcept>
+#include "bookmgmt/Book.h"
+#include "bookmgmt/EBook.h"
+#include "bookmgmt/Journal.h"
 
 #include "bookmgmt/Exceptions.h"
 
@@ -85,6 +88,74 @@ std::vector<const Resource*> Catalog::searchTitle(const std::string& text) const
     const std::string needle = lower(text);
     return where([&needle](const Resource& r) {
         return lower(r.title()).find(needle) != std::string::npos;
+    });
+}
+
+std::vector<const Resource*> Catalog::searchAuthor(
+    const std::string& author) const {
+    const std::string needle = lower(author);
+
+    if (needle.empty()) {
+        return {};
+    }
+
+    return where([&needle](const Resource& resource) {
+        // Book also covers AudioBook if AudioBook derives from Book.
+        if (const auto* book = dynamic_cast<const Book*>(&resource)) {
+            for (const std::string& name : book->authors()) {
+                if (lower(name).find(needle) != std::string::npos) {
+                    return true;
+                }
+            }
+        }
+
+        if (const auto* ebook = dynamic_cast<const EBook*>(&resource)) {
+            for (const std::string& name : ebook->authors()) {
+                if (lower(name).find(needle) != std::string::npos) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    });
+}
+
+std::vector<const Resource*> Catalog::searchIdentifier(
+    const std::string& identifier) const {
+    const std::string needle = lower(identifier);
+
+    if (needle.empty()) {
+        return {};
+    }
+
+    return where([&needle](const Resource& resource) {
+        if (const auto* book = dynamic_cast<const Book*>(&resource)) {
+            return lower(book->isbn()) == needle;
+        }
+
+        if (const auto* ebook = dynamic_cast<const EBook*>(&resource)) {
+            return lower(ebook->isbn()) == needle;
+        }
+
+        if (const auto* journal = dynamic_cast<const Journal*>(&resource)) {
+            return lower(journal->issn()) == needle;
+        }
+
+        return false;
+    });
+}
+
+std::vector<const Resource*> Catalog::searchYearRange(
+    int firstYear, int lastYear) const {
+    if (firstYear > lastYear) {
+        throw std::invalid_argument(
+            "first publication year cannot exceed last publication year");
+    }
+
+    return where([firstYear, lastYear](const Resource& resource) {
+        return resource.year() >= firstYear &&
+               resource.year() <= lastYear;
     });
 }
 

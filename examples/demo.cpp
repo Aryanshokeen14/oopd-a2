@@ -55,16 +55,38 @@ int main()
     std::cout << "\n=== Details of R001 ===\n"
               << catalog.get("R001");
 
+    std::cout << "\n=== Q1: Journal ===\n";          
     std::cout << "\n=== Details of J001 ===\n"
               << catalog.get("J001");
 
+    std::cout << "\n=== Q2: EBook ===\n";          
     std::cout << "\n=== Details of E001 ===\n"
               << catalog.get("E001");
+
+    std::cout << "\n=== Q3: AudioBook and Thesis ===\n";          
     std::cout << "\n=== Details of A001 ===\n"
               << catalog.get("A001");
 
     std::cout << "\n=== Details of T001 ===\n"
               << catalog.get("T001");
+
+    std::cout << "\n=== Q4 Hardcover Pricing ===\n";
+
+    Book paperback(
+    "Q4-P1", "Pricing Demo Book", {"Author"},
+    "ISBN-Q4-P", "Publisher", 2026,
+    Money::of(100), 1, Binding::Paperback);
+
+    Book hardcover(
+    "Q4-H1", "Pricing Demo Book", {"Author"},
+    "ISBN-Q4-H", "Publisher", 2026,
+    Money::of(100), 1, Binding::Hardcover);
+
+    std::cout << "Paperback (1 copy): "
+          << paperback.costFor(1) << '\n';
+
+    std::cout << "Hardcover (1 copy): "
+          << hardcover.costFor(1) << '\n';          
 
     std::cout << "\n=== Q5 Bulk Pricing ===\n";
     Book bulkBook(
@@ -113,6 +135,16 @@ int main()
     const auto printOrder = taxAcq.purchase("TAX-B1", 1);
     const auto electronicOrder = taxAcq.purchase("TAX-E1", 1);
 
+    std::cout << "Print resource:\n"
+              << "  pre-tax:  " << printOrder.preTaxCost << "\n"
+              << "  post-tax: " << printOrder.postTaxCost << "\n";
+
+    std::cout << "Electronic resource:\n"
+              << "  pre-tax:  " << electronicOrder.preTaxCost << "\n"
+              << "  post-tax: " << electronicOrder.postTaxCost << "\n";
+
+    taxAcq.printReport(std::cout);
+
     std::cout << "\n=== Q7 Title Quota ===\n";
 
     Budget titleBudget(Money::of(1000));
@@ -146,16 +178,6 @@ int main()
                       ? "approved"
                       : "rejected")
               << "\n";
-
-    std::cout << "Print resource:\n"
-              << "  pre-tax:  " << printOrder.preTaxCost << "\n"
-              << "  post-tax: " << printOrder.postTaxCost << "\n";
-
-    std::cout << "Electronic resource:\n"
-              << "  pre-tax:  " << electronicOrder.preTaxCost << "\n"
-              << "  post-tax: " << electronicOrder.postTaxCost << "\n";
-
-    taxAcq.printReport(std::cout);
 
     Budget budget(Money::of(20000));
     budget.setQuota(ResourceCategory::Book, {10, Money::of(8000)});
@@ -248,6 +270,7 @@ std::cout << "After cancellation: spent = "
 
 cancelAcq.printReport(std::cout);
 
+   std::cout << "\n=== Q9: Department Budgets ===\n";
 
     Budget csBudget(Money::of(1000));
     Budget physicsBudget(Money::of(2000));
@@ -361,6 +384,30 @@ std::cout << "Budget unchanged: "
 
     vendorAcq.printReport(std::cout);
 
+
+        // Q13: Catalogue searches
+    std::cout << "\n=== Q13: Catalogue Searches ===\n";
+
+    std::cout << "\nSearch by author: Robert C. Martin\n";
+    for (const Resource* r : catalog.searchAuthor("Robert C. Martin")) {
+        std::cout << "  " << r->id() << " - " << r->title() << '\n';
+    }
+
+    std::cout << "\nSearch by ISBN: 978-0132350884\n";
+    for (const Resource* r : catalog.searchIdentifier("978-0132350884")) {
+        std::cout << "  " << r->id() << " - " << r->title() << '\n';
+    }
+
+    std::cout << "\nSearch by ISSN: 1939-1170\n";
+    for (const Resource* r : catalog.searchIdentifier("1939-1170")) {
+        std::cout << "  " << r->id() << " - " << r->title() << '\n';
+    }
+
+    std::cout << "\nSearch by publication year: 2025-2026\n";
+    for (const Resource* r : catalog.searchYearRange(2025, 2026)) {
+        std::cout << "  " << r->id() << " - " << r->title()
+                  << " (" << r->year() << ")\n";
+    }
 
 }
 

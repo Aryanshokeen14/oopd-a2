@@ -718,6 +718,59 @@ static void testVendors() {
     CHECK(catalogPurchase.postTaxCost == Money::of(100));
 }
 
+static void testCatalogSearches() {
+    Catalog catalog;
+
+    catalog.emplace<Book>(
+        "B1", "Clean Code",
+        std::vector<std::string>{"Robert Martin", "Alice Smith"},
+        "ISBN-111", "Prentice Hall", 2008, Money::of(450));
+
+    catalog.emplace<EBook>(
+        "E1", "Modern C++",
+        std::vector<std::string>{"Alice Smith"},
+        "ISBN-222", EBookFormat::PDF, false,
+        "Tech Publisher", 2022, Money::of(200),
+        "https://example.com/modern-cpp");
+
+    catalog.emplace<Journal>(
+        "J1", "Computer Science Review",
+        "ISSN-333", 4, "Academic Press", 2024,
+        Money::of(500));
+
+    // Search by author: case-insensitive partial match.
+    const auto authorResults = catalog.searchAuthor("alice");
+    CHECK(authorResults.size() == 2);
+
+    // Search by ISBN or ISSN.
+    const auto bookResults = catalog.searchIdentifier("ISBN-111");
+    CHECK(bookResults.size() == 1);
+    CHECK(bookResults[0]->id() == "B1");
+
+    const auto ebookResults = catalog.searchIdentifier("ISBN-222");
+    CHECK(ebookResults.size() == 1);
+    CHECK(ebookResults[0]->id() == "E1");
+
+    const auto journalResults = catalog.searchIdentifier("ISSN-333");
+    CHECK(journalResults.size() == 1);
+    CHECK(journalResults[0]->id() == "J1");
+
+    // Inclusive publication-year range: 2022 through 2024.
+    const auto yearResults = catalog.searchYearRange(2022, 2024);
+    CHECK(yearResults.size() == 2);
+
+    // A year range with no matches.
+    CHECK(catalog.searchYearRange(1990, 1999).empty());
+
+    // Invalid year range.
+    bool threw = false;
+    try {
+        catalog.searchYearRange(2025, 2020);
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    CHECK(threw);
+}
 
 
 int main() {
@@ -737,6 +790,7 @@ int main() {
     testBudgetRollover();
     testAllOrNothingBatch();
     testVendors();
+    testCatalogSearches();
     
     std::cout << (g_checks - g_failures) << "/" << g_checks << " checks passed\n";
     return g_failures == 0 ? 0 : 1;

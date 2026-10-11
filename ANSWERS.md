@@ -1,3 +1,72 @@
+# ANSWERS.md
+
+## Q1 — Journal
+
+Implemented a `Journal` class derived from `Resource`. It stores the ISSN, number of issues published per year, and subscription duration in years.
+
+The subscription duration defaults to one year and must be at least one; otherwise, an `std::invalid_argument` exception is thrown. The `costFor()` method calculates the total subscription cost using the unit price, number of copies, and subscription duration.
+
+Added `Journal` to `ResourceCategory`, category naming, and budget quota reporting. Overrode `printDetails()` to display journal-specific information.
+
+## Q2 — EBook
+
+Implemented an `EBook` class derived from `ElectronicResource`. It stores authors, ISBN, file format (PDF, EPUB, or HTML), and DRM protection status.
+
+The class inherits pricing behavior from `ElectronicResource`, including the platform fee and per-seat pricing. A separate `ResourceCategory::EBook` allows e-books to have independent purchase quotas.
+
+Overrode `printDetails()` to display inherited electronic-resource details followed by e-book-specific information.
+
+**Design question:** The `Book` and `EBook` classes duplicate author and ISBN fields, their accessors, and related display logic. This duplication could be reduced by introducing a shared abstract bibliographic class containing common metadata, with both classes inheriting from it.
+
+## Q3 — AudioBook and Thesis
+
+Added an `AudioBook` class with narrator and duration fields, and a `Thesis` class with university, degree, and supervisor fields.
+
+`AudioBook` derives from `Book` because it retains book-related metadata, including authors and ISBN, while adding audio-specific information.
+
+`Thesis` derives directly from `Resource` because it represents an academic work with its own metadata and does not necessarily require the pricing behavior or fields of a print book or electronic resource.
+
+The thesis can be assigned a zero unit price when it is available free of cost.
+
+## Q4 — Hardcover Pricing
+
+Updated the pricing behavior for hardcover books so that hardcover copies cost 20% more than their listed unit price.
+
+The existing pricing behavior for paperback books remains unchanged. The calculation is implemented through the overridden `costFor()` method.
+
+## Q5 — Bulk Discounts
+
+Implemented bulk discounts for print and electronic resources.
+
+- **Print resources:** A 10% discount applies when at least 10 copies are purchased in one transaction.
+- **Electronic resources:** Seats numbered 1 through 50 are charged at the regular rate; each additional seat is charged at half the regular rate.
+
+The discount logic is implemented in the resource pricing methods while preserving the existing pricing behavior for smaller purchases.
+
+## Q6 — Taxes
+
+Implemented configurable tax rates for print and electronic resources.
+
+Purchase calculations record both pre-tax and post-tax costs. Budget and quota validation uses the post-tax amount so that taxes are included when determining whether a purchase can be approved.
+
+The purchase report displays the pre-tax cost, tax-inclusive cost, and relevant purchase information.
+
+## Q7 — Different-Title Quota
+
+Extended the budget and quota functionality to limit the number of distinct resource titles purchased in each category.
+
+The system tracks distinct purchased titles separately from the total number of units. Purchasing additional copies of an already-purchased title does not count as a new distinct title.
+
+A purchase that exceeds the configured distinct-title limit is rejected without changing the budget or quota usage.
+
+## Q8 — Order Cancellation
+
+Implemented cancellation of approved purchases.
+
+When an order is cancelled, the system refunds the corresponding budget expenditure, restores the applicable quota usage, and reduces the catalogue holdings by the number of units originally purchased.
+
+The original purchase record remains in the order history, and a separate cancellation record is added for traceability. This preserves the transaction history while reflecting the reversal in the current budget, quota, and holdings totals.
+
 ## Q9 — Department-Specific Budgets and Quotas
 
 **Implementation**
@@ -67,3 +136,13 @@ Resources without registered vendor offers retain their catalog
 pricing and use "Catalog" as the vendor label. Existing tax, budget,
 quota, department, cancellation, and batch-processing behavior is
 preserved.
+
+## Q13 — Catalogue Searches
+
+Extended the catalogue with searches by author, ISBN/ISSN, and publication-year range.
+
+- **Author search:** Performs a case-insensitive partial match against author names in books and e-books.
+- **Identifier search:** Matches ISBN values for books and e-books, and ISSN values for journals.
+- **Publication-year search:** Returns resources whose publication years fall within the specified inclusive range.
+
+The searches reuse the existing `where()` filtering method and return results in catalogue ID order. Invalid year ranges are rejected, and empty author or identifier queries return no results.

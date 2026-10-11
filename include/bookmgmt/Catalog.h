@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <utility>
 
 #include "bookmgmt/Resource.h"
 
@@ -43,6 +44,13 @@ public:
     std::vector<const Resource*> all() const;
     std::vector<const Resource*> byCategory(ResourceCategory c) const;
     std::vector<const Resource*> searchTitle(const std::string& text) const;  // case-insensitive
+
+    // Additional catalogue searches for Q13.
+    std::vector<const Resource*> searchAuthor(const std::string& author) const;
+    std::vector<const Resource*> searchIdentifier(
+        const std::string& identifier) const;  // ISBN or ISSN
+    std::vector<const Resource*> searchYearRange(int firstYear, int lastYear) const;
+
     std::vector<const Resource*> where(
         const std::function<bool(const Resource&)>& pred) const;
 
