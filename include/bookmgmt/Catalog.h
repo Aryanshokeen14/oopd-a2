@@ -2,6 +2,7 @@
 // Catalog: owns every Resource, keyed by its id, and tracks copies/seats held.
 
 #include <functional>
+#include <iosfwd>
 #include <map>
 #include <memory>
 #include <string>
@@ -64,6 +65,11 @@ public:
 
     std::vector<const Resource*> where(
         const std::function<bool(const Resource&)>& pred) const;
+
+    // Q13: Save one typed resource record per line and reconstruct the
+    // corresponding derived resource class when loading.
+    void save(std::ostream& output) const;
+    static Catalog load(std::istream& input);
 
 private:
     struct Entry {

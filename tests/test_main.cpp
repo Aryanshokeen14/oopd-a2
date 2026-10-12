@@ -625,6 +625,33 @@ static void testDepartmentBudgets() {
     assert(acq.departmentBudget("Physics")->spent() == Money{});
 }
 
+
+static void testQuotaWarnings() {
+    Budget budget(Money::of(10000));
+    budget.setQuota(ResourceCategory::Book, Quota{10, Money::of(1000)});
+    budget.setQuota(ResourceCategory::Journal, Quota{20, Money::of(2000)});
+
+    // Exactly 80% is not "past 80%".
+    budget.commit(ResourceCategory::Book, 8, Money::of(800));
+    assert(budget.quotaWarnings().empty());
+
+    // More than 80% of the unit quota triggers a unit warning.
+    budget.commit(ResourceCategory::Book, 1, Money::of(0));
+    auto warnings = budget.quotaWarnings();
+    assert(warnings.size() == 1);
+    assert(warnings[0].find("Book unit quota") != std::string::npos);
+
+    // More than 80% of the spend quota triggers a spending warning.
+    budget.commit(ResourceCategory::Journal, 1, Money::of(1700));
+    warnings = budget.quotaWarnings();
+    assert(warnings.size() == 2);
+    assert(warnings[1].find("Journal spend quota") != std::string::npos);
+
+    // Categories without quotas and zero-valued usage do not produce warnings.
+    Budget noQuota(Money::of(100));
+    assert(noQuota.quotaWarnings().empty());
+}
+
 static void testBudgetRollover() {
     Budget currentYear(Money::of(1000));
 
@@ -860,6 +887,103 @@ static void testCatalogSearches() {
     assert(threw);
 }
 
+
+static void testCatalogPersistence() {
+    Catalog original;
+    original.emplace<Book>(
+        "B1", "Book with spaces", std::vector<std::string>{"Author One", "Author Two"},
+        "ISBN-1", "Publisher", 2020, Money::of(125, 50, "INR"),
+        2, Binding::Hardcover);
+    original.emplace<AudioBook>(
+        "A1", "Audio Book", std::vector<std::string>{"Narrative Author"},
+        "ISBN-A", "Audio Publisher", 2021, Money::of(20), "Narrator One",
+        345, 3, Binding::Paperback);
+    original.emplace<EBook>(
+        "E1", "Electronic Book", std::vector<std::string>{"E Author"},
+        "ISBN-E", EBookFormat::EPUB, true, "E Publisher", 2022,
+        Money::of(15, 25, "USD"), "https://example.test/ebook",
+        LicenseModel::Perpetual, Money::of(3, 50, "USD"));
+    original.emplace<ElectronicResource>(
+        "R1", "Digital Database", "Database Publisher", 2023,
+        Money::of(10), "https://example.test/db",
+        LicenseModel::AnnualSubscription, Money::of(100));
+    original.emplace<Journal>(
+        "J1", "Research Journal", "ISSN-1234", 12, "Journal Publisher",
+        2024, Money::of(50), 2);
+    original.emplace<Thesis>(
+        "T1", "Graduate Thesis", "Example University", "MSc",
+        "Supervisor One", "Example University Press", 2025, Money{});
+
+    original.addHoldings("B1", 4);
+    original.addHoldings("A1", 2);
+    original.addHoldings("E1", 10);
+    original.addHoldings("R1", 8);
+    original.addHoldings("J1", 3);
+    original.addHoldings("T1", 1);
+
+    std::stringstream data;
+    original.save(data);
+    const std::string serialized = data.str();
+    assert(serialized.find("BOOK ") != std::string::npos);
+    assert(serialized.find("AUDIOBOOK ") != std::string::npos);
+    assert(serialized.find("EBOOK ") != std::string::npos);
+    assert(serialized.find("ELECTRONIC ") != std::string::npos);
+    assert(serialized.find("JOURNAL ") != std::string::npos);
+    assert(serialized.find("THESIS ") != std::string::npos);
+
+    Catalog restored = Catalog::load(data);
+    assert(restored.size() == original.size());
+    assert(dynamic_cast<const Book*>(restored.find("B1")) != nullptr);
+    assert(dynamic_cast<const AudioBook*>(restored.find("A1")) != nullptr);
+    assert(dynamic_cast<const EBook*>(restored.find("E1")) != nullptr);
+    assert(dynamic_cast<const ElectronicResource*>(restored.find("R1")) != nullptr);
+    assert(dynamic_cast<const Journal*>(restored.find("J1")) != nullptr);
+    assert(dynamic_cast<const Thesis*>(restored.find("T1")) != nullptr);
+
+    const auto* book = dynamic_cast<const Book*>(restored.find("B1"));
+    assert(book != nullptr);
+    assert(book->authors().size() == 2);
+    assert(book->isbn() == "ISBN-1");
+    assert(book->edition() == 2);
+    assert(book->binding() == Binding::Hardcover);
+    assert(book->unitPrice() == Money::of(125, 50, "INR"));
+
+    const auto* audio = dynamic_cast<const AudioBook*>(restored.find("A1"));
+    assert(audio != nullptr);
+    assert(audio->narrator() == "Narrator One");
+    assert(audio->durationMinutes() == 345);
+
+    const auto* ebook = dynamic_cast<const EBook*>(restored.find("E1"));
+    assert(ebook != nullptr);
+    assert(ebook->format() == EBookFormat::EPUB);
+    assert(ebook->drmProtected());
+    assert(ebook->unitPrice() == Money::of(15, 25, "USD"));
+    assert(ebook->platformFee() == Money::of(3, 50, "USD"));
+
+    const auto* journal = dynamic_cast<const Journal*>(restored.find("J1"));
+    assert(journal != nullptr);
+    assert(journal->issn() == "ISSN-1234");
+    assert(journal->issuesPerYear() == 12);
+    assert(journal->subscriptionYears() == 2);
+
+    const auto* thesis = dynamic_cast<const Thesis*>(restored.find("T1"));
+    assert(thesis != nullptr);
+    assert(thesis->university() == "Example University");
+    assert(thesis->degree() == "MSc");
+    assert(thesis->supervisor() == "Supervisor One");
+
+    assert(restored.holdings("B1") == 4);
+    assert(restored.holdings("A1") == 2);
+    assert(restored.holdings("E1") == 10);
+    assert(restored.holdings("R1") == 8);
+    assert(restored.holdings("J1") == 3);
+    assert(restored.holdings("T1") == 1);
+
+    std::istringstream invalid(
+        "ALIEN \"X1\" \"Unknown\" \"Publisher\" 2020 100 \"INR\" 0\n");
+    assertThrows<std::runtime_error>([&] { (void)Catalog::load(invalid); });
+}
+
 static void testLending() {
     Catalog catalog;
 
@@ -981,10 +1105,12 @@ int main() {
     testCancellation();
     testDepartmentBudgets();
     testBudgetRollover();
+    testQuotaWarnings();
     testAllOrNothingBatch();
     testVendors();
     testCatalogSearches();
     testLending();
+    testCatalogPersistence();
     
     return 0;
 }

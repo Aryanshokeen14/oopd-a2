@@ -8,6 +8,8 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <vector>
+
 
 #include "bookmgmt/Money.h"
 #include "bookmgmt/Resource.h"
@@ -36,6 +38,9 @@ public:
     void removeQuota(ResourceCategory c);
     std::optional<Quota> quotaFor(ResourceCategory c) const;
     Usage usageFor(ResourceCategory c) const;
+
+    // Warnings for category unit or spending quotas used beyond 80%.
+    std::vector<std::string> quotaWarnings() const;
 
     void setTitleQuota(const std::string& title, int maxUnits);
     void removeTitleQuota(const std::string& title);

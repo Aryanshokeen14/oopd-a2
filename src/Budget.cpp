@@ -5,6 +5,8 @@
 #include <stdexcept>
 #include <iostream>
 #include <cstdint>
+#include <vector>
+
 
 #include "bookmgmt/Exceptions.h"
 
@@ -127,6 +129,37 @@ std::optional<Quota> Budget::quotaFor(ResourceCategory c) const {
 Usage Budget::usageFor(ResourceCategory c) const {
     auto it = usage_.find(c);
     return it == usage_.end() ? Usage{} : it->second;
+}
+
+std::vector<std::string> Budget::quotaWarnings() const {
+    std::vector<std::string> warnings;
+
+    for (const auto& [category, quota] : quotas_) {
+        const Usage usage = usageFor(category);
+        const std::string name = categoryName(category);
+
+        if (quota.maxUnits > 0 &&
+            static_cast<long double>(usage.units) /
+                static_cast<long double>(quota.maxUnits) > 0.80L) {
+            warnings.push_back(
+                name + " unit quota is above 80%: " +
+                std::to_string(usage.units) + "/" +
+                std::to_string(quota.maxUnits) + " units used");
+        }
+
+        const auto maxSpend = quota.maxSpend.minorUnits();
+        const auto usedSpend = usage.spent.minorUnits();
+        if (maxSpend > 0 &&
+            static_cast<long double>(usedSpend) /
+                static_cast<long double>(maxSpend) > 0.80L) {
+            warnings.push_back(
+                name + " spend quota is above 80%: " +
+                usage.spent.toString() + "/" +
+                quota.maxSpend.toString() + " spent");
+        }
+    }
+
+    return warnings;
 }
 
 std::optional<int> Budget::unitsRemaining(ResourceCategory c) const {

@@ -92,19 +92,20 @@ The original purchase record remains in the order history, and a separate cancel
 - All 155 checks passed.
 
 
-## Q10 — Year-End Budget Rollover
+## Q10 — Year-End Budget Rollover and Quota Warnings
 
 **Implementation**
-- Added `Budget::rollover(int carryForwardPercent) const`.
-- The next year's total budget is the configured percentage of the current year's unspent balance.
-- Category quotas and title quotas carry forward, while spending and usage reset for the new year.
-- The original budget remains unchanged.
-- Percentages outside the inclusive range 0–100 are rejected with `std::invalid_argument`.
+- Added `Budget::rollover(int carryForwardPercent) const`. The next year's total is the configured percentage of the current year's unspent balance.
+- Category and title quota limits carry forward, while spending and usage reset for the new year. The original budget remains unchanged.
+- Percentages outside 0–100 are rejected with `std::invalid_argument`.
+- Added `Budget::quotaWarnings()`, which reports category unit or spending quotas only when usage is strictly above 80% of the corresponding positive limit.
+
+**Design decision**
+- Quota warnings are returned as strings, allowing the demo or caller to display them without coupling `Budget` to console output.
 
 **Testing**
-- Tested 0%, 50%, and 100% rollover.
-- Tested quota preservation and resetting of category and title usage.
-- Tested invalid percentages and confirmed that the original budget remains unchanged.
+- Tested 0%, 50%, and 100% rollover, quota preservation, reset usage, invalid percentages, and unchanged original budget.
+- Tested that exactly 80% does not warn, usage above 80% triggers the appropriate warning, and categories without quotas do not warn.
 
 ## Q11 — All-or-Nothing Batch Processing
 
@@ -137,15 +138,20 @@ pricing and use "Catalog" as the vendor label. Existing tax, budget,
 quota, department, cancellation, and batch-processing behavior is
 preserved.
 
-## Q13 — Catalogue Searches
+## Q13 — Catalogue Searches and Save/Load
 
 Extended the catalogue with searches by author, ISBN/ISSN, and publication-year range.
 
 - **Author search:** Performs a case-insensitive partial match against author names in books and e-books.
 - **Identifier search:** Matches ISBN values for books and e-books, and ISSN values for journals.
 - **Publication-year search:** Returns resources whose publication years fall within the specified inclusive range.
+- **Save/load:** `Catalog::save()` writes one record per line with an explicit resource-type tag. `Catalog::load()` uses that tag to reconstruct the correct derived class and restores catalogue holdings.
 
-The searches reuse the existing `where()` filtering method and return results in catalogue ID order. Invalid year ranges are rejected, and empty author or identifier queries return no results.
+The searches reuse the existing `where()` filtering method and return results in catalogue ID order. Invalid year ranges are rejected, and empty author or identifier queries return no results. The save format uses quoted strings to preserve spaces and punctuation, and stores monetary values in minor units with their currency codes.
+
+**Design decision:** Serialization uses stream-based methods so callers can save/load through files or other C++ streams. Unknown resource types and malformed records are rejected with an exception.
+
+**Testing:** Added round-trip coverage for `Book`, `AudioBook`, `EBook`, `ElectronicResource`, `Journal`, and `Thesis`, including derived-type restoration, subtype fields, currencies, and holdings.
 
 
 ### Q14 — Lending

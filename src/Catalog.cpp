@@ -1,9 +1,15 @@
 #include "bookmgmt/Catalog.h"
 
 #include <algorithm>
+#include <iomanip>
+#include <sstream>
+#include <istream>
+#include <ostream>
 #include <cctype>
 #include <stdexcept>
 #include "bookmgmt/Book.h"
+#include "bookmgmt/AudioBook.h"
+#include "bookmgmt/Thesis.h"
 #include "bookmgmt/EBook.h"
 #include "bookmgmt/Journal.h"
 #include "bookmgmt/ElectronicResource.h"
@@ -18,6 +24,103 @@ std::string lower(std::string s) {
     std::transform(s.begin(), s.end(), s.begin(),
                    [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
     return s;
+}
+
+void writeCommon(std::ostream& out, const Resource& resource) {
+    const Money price = resource.unitPrice();
+    out << std::quoted(resource.id()) << ' '
+        << std::quoted(resource.title()) << ' '
+        << std::quoted(resource.publisher()) << ' '
+        << resource.year() << ' '
+        << price.minorUnits() << ' '
+        << std::quoted(price.currency()) << ' ';
+}
+
+bool readCommon(std::istream& in, std::string& id, std::string& title,
+                std::string& publisher, int& year, Money& price) {
+    std::int64_t minor = 0;
+    std::string currency;
+    if (!(in >> std::quoted(id) >> std::quoted(title)
+             >> std::quoted(publisher) >> year >> minor
+             >> std::quoted(currency))) {
+        return false;
+    }
+    price = Money::fromMinor(minor, currency);
+    return true;
+}
+
+void writeAuthors(std::ostream& out, const std::vector<std::string>& authors) {
+    out << authors.size() << ' ';
+    for (const auto& author : authors) {
+        out << std::quoted(author) << ' ';
+    }
+}
+
+bool readAuthors(std::istream& in, std::vector<std::string>& authors) {
+    int count = 0;
+    if (!(in >> count) || count < 0 || count > 100000) {
+        return false;
+    }
+    authors.clear();
+    authors.reserve(static_cast<std::size_t>(count));
+    for (int i = 0; i < count; ++i) {
+        std::string author;
+        if (!(in >> std::quoted(author))) {
+            return false;
+        }
+        authors.push_back(std::move(author));
+    }
+    return true;
+}
+
+void writeBookFields(std::ostream& out, const Book& book) {
+    writeAuthors(out, book.authors());
+    out << std::quoted(book.isbn()) << ' '
+        << book.edition() << ' '
+        << static_cast<int>(book.binding()) << ' ';
+}
+
+bool readBookFields(std::istream& in, std::vector<std::string>& authors,
+                    std::string& isbn, int& edition, Binding& binding) {
+    int bindingValue = 0;
+    if (!readAuthors(in, authors) ||
+        !(in >> std::quoted(isbn) >> edition >> bindingValue) ||
+        edition < 1 || (bindingValue != static_cast<int>(Binding::Paperback) &&
+                        bindingValue != static_cast<int>(Binding::Hardcover))) {
+        return false;
+    }
+    binding = static_cast<Binding>(bindingValue);
+    return true;
+}
+
+void writeElectronicFields(std::ostream& out,
+                           const ElectronicResource& resource) {
+    const Money fee = resource.platformFee();
+    out << std::quoted(resource.accessUrl()) << ' '
+        << static_cast<int>(resource.license()) << ' '
+        << fee.minorUnits() << ' '
+        << std::quoted(fee.currency()) << ' ';
+}
+
+bool readElectronicFields(std::istream& in, std::string& url,
+                          LicenseModel& license, Money& fee) {
+    int licenseValue = 0;
+    std::int64_t feeMinor = 0;
+    std::string feeCurrency;
+    if (!(in >> std::quoted(url) >> licenseValue >> feeMinor
+             >> std::quoted(feeCurrency)) ||
+        (licenseValue != static_cast<int>(LicenseModel::Perpetual) &&
+         licenseValue != static_cast<int>(LicenseModel::AnnualSubscription))) {
+        return false;
+    }
+    license = static_cast<LicenseModel>(licenseValue);
+    fee = Money::fromMinor(feeMinor, feeCurrency);
+    return true;
+}
+
+bool recordHasNoExtraFields(std::istream& in) {
+    std::string extra;
+    return !(in >> extra);
 }
 }  // namespace
 
@@ -328,6 +431,206 @@ std::vector<const Resource*> Catalog::searchYearRange(
         return resource.year() >= firstYear &&
                resource.year() <= lastYear;
     });
+}
+
+void Catalog::save(std::ostream& output) const {
+    for (const auto& [id, entry] : items_) {
+        const Resource& resource = *entry.resource;
+        const int held = entry.holdings;
+
+        if (const auto* audio = dynamic_cast<const AudioBook*>(&resource)) {
+            output << "AUDIOBOOK ";
+            writeCommon(output, *audio);
+            writeBookFields(output, *audio);
+            output << std::quoted(audio->narrator()) << ' '
+                   << audio->durationMinutes() << ' ' << held;
+        } else if (const auto* ebook = dynamic_cast<const EBook*>(&resource)) {
+            output << "EBOOK ";
+            writeCommon(output, *ebook);
+            writeAuthors(output, ebook->authors());
+            output << std::quoted(ebook->isbn()) << ' '
+                   << static_cast<int>(ebook->format()) << ' '
+                   << (ebook->drmProtected() ? 1 : 0) << ' ';
+            writeElectronicFields(output, *ebook);
+            output << held;
+        } else if (const auto* book = dynamic_cast<const Book*>(&resource)) {
+            output << "BOOK ";
+            writeCommon(output, *book);
+            writeBookFields(output, *book);
+            output << held;
+        } else if (const auto* journal = dynamic_cast<const Journal*>(&resource)) {
+            output << "JOURNAL ";
+            writeCommon(output, *journal);
+            output << std::quoted(journal->issn()) << ' '
+                   << journal->issuesPerYear() << ' '
+                   << journal->subscriptionYears() << ' ' << held;
+        } else if (const auto* thesis = dynamic_cast<const Thesis*>(&resource)) {
+            output << "THESIS ";
+            writeCommon(output, *thesis);
+            output << std::quoted(thesis->university()) << ' '
+                   << std::quoted(thesis->degree()) << ' '
+                   << std::quoted(thesis->supervisor()) << ' ' << held;
+        } else if (const auto* electronic =
+                       dynamic_cast<const ElectronicResource*>(&resource)) {
+            output << "ELECTRONIC ";
+            writeCommon(output, *electronic);
+            writeElectronicFields(output, *electronic);
+            output << held;
+        } else {
+            throw std::runtime_error(
+                "cannot save unsupported resource type: " + resource.id());
+        }
+
+        output << '\n';
+        if (!output) {
+            throw std::runtime_error("failed while saving catalogue");
+        }
+    }
+}
+
+Catalog Catalog::load(std::istream& input) {
+    Catalog catalog;
+    std::string line;
+    std::size_t lineNumber = 0;
+
+    while (std::getline(input, line)) {
+        ++lineNumber;
+        if (line.find_first_not_of(" \t\r") == std::string::npos) {
+            continue;
+        }
+
+        std::istringstream record(line);
+        std::string type;
+        std::string id;
+        std::string title;
+        std::string publisher;
+        int year = 0;
+        Money price;
+        if (!(record >> type) ||
+            !readCommon(record, id, title, publisher, year, price)) {
+            throw std::runtime_error(
+                "invalid catalogue record on line " + std::to_string(lineNumber));
+        }
+
+        std::unique_ptr<Resource> resource;
+        int held = 0;
+
+        if (type == "AUDIOBOOK" || type == "BOOK") {
+            std::vector<std::string> authors;
+            std::string isbn;
+            int edition = 1;
+            Binding binding = Binding::Paperback;
+            if (!readBookFields(record, authors, isbn, edition, binding)) {
+                throw std::runtime_error(
+                    "invalid book fields on catalogue line " +
+                    std::to_string(lineNumber));
+            }
+
+            if (type == "AUDIOBOOK") {
+                std::string narrator;
+                int duration = 0;
+                if (!(record >> std::quoted(narrator) >> duration >> held) ||
+                    duration <= 0) {
+                    throw std::runtime_error(
+                        "invalid audiobook fields on catalogue line " +
+                        std::to_string(lineNumber));
+                }
+                resource = std::make_unique<AudioBook>(
+                    id, title, std::move(authors), isbn, publisher, year,
+                    price, narrator, duration, edition, binding);
+            } else {
+                if (!(record >> held)) {
+                    throw std::runtime_error(
+                        "invalid book holdings on catalogue line " +
+                        std::to_string(lineNumber));
+                }
+                resource = std::make_unique<Book>(
+                    id, title, std::move(authors), isbn, publisher, year,
+                    price, edition, binding);
+            }
+        } else if (type == "EBOOK") {
+            std::vector<std::string> authors;
+            std::string isbn;
+            int formatValue = 0;
+            int drm = 0;
+            std::string url;
+            LicenseModel license = LicenseModel::AnnualSubscription;
+            Money fee;
+            if (!readAuthors(record, authors) ||
+                !(record >> std::quoted(isbn) >> formatValue >> drm) ||
+                formatValue < static_cast<int>(EBookFormat::PDF) ||
+                formatValue > static_cast<int>(EBookFormat::HTML) ||
+                (drm != 0 && drm != 1) ||
+                !readElectronicFields(record, url, license, fee) ||
+                !(record >> held)) {
+                throw std::runtime_error(
+                    "invalid ebook fields on catalogue line " +
+                    std::to_string(lineNumber));
+            }
+            resource = std::make_unique<EBook>(
+                id, title, std::move(authors), isbn,
+                static_cast<EBookFormat>(formatValue), drm != 0,
+                publisher, year, price, url, license, fee);
+        } else if (type == "ELECTRONIC") {
+            std::string url;
+            LicenseModel license = LicenseModel::AnnualSubscription;
+            Money fee;
+            if (!readElectronicFields(record, url, license, fee) ||
+                !(record >> held)) {
+                throw std::runtime_error(
+                    "invalid electronic-resource fields on catalogue line " +
+                    std::to_string(lineNumber));
+            }
+            resource = std::make_unique<ElectronicResource>(
+                id, title, publisher, year, price, url, license, fee);
+        } else if (type == "JOURNAL") {
+            std::string issn;
+            int issues = 0;
+            int subscriptionYears = 0;
+            if (!(record >> std::quoted(issn) >> issues >>
+                  subscriptionYears >> held)) {
+                throw std::runtime_error(
+                    "invalid journal fields on catalogue line " +
+                    std::to_string(lineNumber));
+            }
+            resource = std::make_unique<Journal>(
+                id, title, issn, issues, publisher, year, price,
+                subscriptionYears);
+        } else if (type == "THESIS") {
+            std::string university;
+            std::string degree;
+            std::string supervisor;
+            if (!(record >> std::quoted(university) >> std::quoted(degree) >>
+                  std::quoted(supervisor) >> held)) {
+                throw std::runtime_error(
+                    "invalid thesis fields on catalogue line " +
+                    std::to_string(lineNumber));
+            }
+            resource = std::make_unique<Thesis>(
+                id, title, university, degree, supervisor,
+                publisher, year, price);
+        } else {
+            throw std::runtime_error(
+                "unknown resource type on catalogue line " +
+                std::to_string(lineNumber) + ": " + type);
+        }
+
+        if (held < 0 || !recordHasNoExtraFields(record)) {
+            throw std::runtime_error(
+                "invalid trailing fields or holdings on catalogue line " +
+                std::to_string(lineNumber));
+        }
+
+        catalog.add(std::move(resource));
+        if (held > 0) {
+            catalog.addHoldings(id, held);
+        }
+    }
+
+    if (input.bad()) {
+        throw std::runtime_error("failed while reading catalogue");
+    }
+    return catalog;
 }
 
 }  // namespace bookmgmt

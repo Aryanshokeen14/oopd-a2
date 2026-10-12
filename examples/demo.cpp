@@ -2,6 +2,8 @@
 // and runs a batch of purchase requests through the acquisition manager.
 
 #include <iostream>
+#include <fstream>
+#include <cstdio>
 
 #include "bookmgmt/bookmgmt.h"
 
@@ -318,6 +320,14 @@ cancelAcq.printReport(std::cout);
     std::cout << "Next-year Book units used: "
               << nextYear.usageFor(ResourceCategory::Book).units
               << '\n';
+    std::cout << "Quota warning example:\n";
+    Budget warningBudget(Money::of(5000));
+    warningBudget.setQuota(
+        ResourceCategory::Book, Quota{10, Money::of(1000)});
+    warningBudget.commit(ResourceCategory::Book, 9, Money::of(850));
+    for (const auto& warning : warningBudget.quotaWarnings()) {
+        std::cout << "  WARNING: " << warning << '\n';
+    }
 
     // Q11: All-or-nothing batch processing
 std::cout << "\n=== Q11: All-or-Nothing Batch ===\n";
@@ -385,8 +395,8 @@ std::cout << "Budget unchanged: "
     vendorAcq.printReport(std::cout);
 
 
-        // Q13: Catalogue searches
-    std::cout << "\n=== Q13: Catalogue Searches ===\n";
+        // Q13: Catalogue searches and Save/Load
+    std::cout << "\n=== Q13: Catalogue Searches and Save/Load ===\n";
 
     std::cout << "\nSearch by author: Robert C. Martin\n";
     for (const Resource* r : catalog.searchAuthor("Robert C. Martin")) {
@@ -408,6 +418,32 @@ std::cout << "Budget unchanged: "
         std::cout << "  " << r->id() << " - " << r->title()
                   << " (" << r->year() << ")\n";
     }
+
+    const char* catalogueFileName = "catalogue_demo.txt";
+    {
+        std::ofstream output(catalogueFileName);
+        if (!output) {
+            std::cerr << "Could not open catalogue file for writing\n";
+            return 1;
+        }
+        catalog.save(output);
+    }
+    Catalog loadedCatalog;
+    {
+        std::ifstream input(catalogueFileName);
+        if (!input) {
+            std::cerr << "Could not open catalogue file for reading\n";
+            return 1;
+        }
+        loadedCatalog = Catalog::load(input);
+    }
+    std::cout << "Resources saved and loaded: " << loadedCatalog.size() << '\n';
+    std::cout << "B001 restored as Book: "
+              << (dynamic_cast<const Book*>(loadedCatalog.find("B001")) != nullptr
+                      ? "yes" : "no") << '\n';
+    std::cout << "B001 holdings restored: "
+              << loadedCatalog.holdings("B001") << '\n';
+    std::remove(catalogueFileName);
 
     // Q14: Lending and electronic sessions.
 std::cout << "\n=== Q14: Lending ===\n";
