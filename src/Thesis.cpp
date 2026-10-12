@@ -1,3 +1,6 @@
+// ARYAN SHOKEEN
+// MT26116
+
 #include "bookmgmt/Thesis.h"
 
 #include <ostream>

@@ -1,3 +1,6 @@
+// ARYAN SHOKEEN
+// MT26116
+
 #pragma once
 // Money: fixed-point currency amount stored in minor units.
 // Amounts with different currency codes cannot be combined or compared.

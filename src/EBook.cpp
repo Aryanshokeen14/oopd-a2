@@ -1,3 +1,6 @@
+// ARYAN SHOKEEN
+// MT26116
+
 #include "bookmgmt/EBook.h"
 
 #include <ostream>

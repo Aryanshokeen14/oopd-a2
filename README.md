@@ -1,3 +1,6 @@
+## ARYAN SHOKEEN
+## MT26116
+
 # BookManagement — a C++17 library for library acquisitions
 
 A small, dependency-free C++ library for cataloguing library resources and

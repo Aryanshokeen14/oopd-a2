@@ -1,3 +1,6 @@
+// ARYAN SHOKEEN
+// MT26116
+
 #pragma once
 // Catalog: owns every Resource, keyed by its id, and tracks copies/seats held.
 

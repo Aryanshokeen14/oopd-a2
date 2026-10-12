@@ -1,3 +1,6 @@
+// ARYAN SHOKEEN
+// MT26116
+
 // Demo: builds a small catalog, sets a budget with per-category quotas,
 // and runs a batch of purchase requests through the acquisition manager.
 
